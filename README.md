@@ -13,14 +13,16 @@ to GitHub Pages by GitHub Actions.
 
 | URL | What it shows | Rendered by |
 |-----|---------------|-------------|
-| `/` | Intro, photo/monogram, social links, latest 3 posts | `layouts/home.html` |
-| `/blog/` | All posts as a paginated card grid with category chips | `layouts/blog/list.html` |
+| `/` | Personal landing page: name, photo/monogram, social links, intro text | `layouts/home.html` |
+| `/blog/` | All posts as a paginated card grid with category chips and a search button | `layouts/blog/list.html` |
 | `/blog/<category>/` | Same grid, filtered to one folder | `layouts/blog/list.html` |
 | `/blog/<category>/<post>/` | A post | the theme's single-page template |
 | `/tags/`, `/tags/<tag>/` | Tag list; card grid per tag | theme (`/tags/`), `layouts/term.html` |
 | `/archives/` | Every post by year | theme (PaperMod `archives` layout) |
 | `/search/` | Full search page with tag/category filters | `layouts/pagefind.html` |
-| `/about/` | About page | theme |
+
+Only **Blog** is in the nav bar. Tags, the archive and search are reached from the blog page
+(tag chips on cards, the search button, Ctrl/Cmd+K) or by URL.
 
 ## Repository layout
 
@@ -31,8 +33,8 @@ to GitHub Pages by GitHub Actions.
 │   ├── params.toml      # [manlog] settings for our layer + theme-specific params
 │   └── menus.toml       # top navigation bar
 ├── content/             # everything you write (Markdown)
-│   ├── _index.md        # landing page intro text
-│   ├── about.md, search.md, archives.md
+│   ├── _index.md        # landing page text (your intro)
+│   ├── search.md, archives.md
 │   └── blog/
 │       ├── _index.md            # /blog/ title + description
 │       ├── <category>/_index.md # one folder per category (ml, math, cp, ...)
@@ -130,30 +132,74 @@ flowchart LR
 
 ## Local development
 
-Requirements: [Hugo extended](https://gohugo.io/installation/) **v0.146 or newer** (CI uses
-v0.167.0), and git.
+Publishing needs nothing on your machine: GitHub Actions installs Hugo and Pagefind and
+builds the site on every push. Everything below is only for previewing posts locally.
+
+### Setting up on a new machine
+
+**1. Clone with the theme submodule.** PaperMod lives in `themes/PaperMod` as a git
+submodule (a pointer to a theme commit, not the files themselves). A plain `git clone` leaves
+that folder empty and the build fails, so clone with:
 
 ```bash
-# First clone: fetch the theme submodule too
 git clone --recurse-submodules https://github.com/gudurumanoj/gudurumanoj.github.io.git
-# (or, in an existing clone)
-git submodule update --init --recursive
+cd gudurumanoj.github.io
+```
 
-# Live preview with drafts at http://localhost:1313 (reloads on save)
+If you already cloned without the flag, fetch the theme with
+`git submodule update --init --recursive`.
+
+**2. Install Hugo extended, matching the version CI uses** (`HUGO_VERSION` in
+`.github/workflows/hugo.yml`, currently 0.167.0). It is a single binary:
+
+```bash
+# Linux (Debian/Ubuntu, needs sudo)
+wget https://github.com/gohugoio/hugo/releases/download/v0.167.0/hugo_extended_0.167.0_linux-amd64.deb
+sudo dpkg -i hugo_extended_0.167.0_linux-amd64.deb
+
+# Linux without sudo: unpack the binary into ~/.local/bin (make sure it is on your PATH)
+mkdir -p ~/.local/bin
+curl -L https://github.com/gohugoio/hugo/releases/download/v0.167.0/hugo_extended_0.167.0_linux-amd64.tar.gz \
+  | tar -xz -C ~/.local/bin hugo
+
+# macOS
+brew install hugo
+
+hugo version   # should print v0.167.0+extended
+```
+
+Use 0.166 or newer: the layouts use Hugo's newer template folder structure, and the
+math stylesheet (`katexCSS` in `params.toml`) is pinned to the KaTeX version bundled with
+Hugo 0.166+, so older versions render equations wrongly.
+
+**3. Preview.** This serves the site with drafts at http://localhost:1313 and reloads on save:
+
+```bash
 hugo server -D
 ```
 
-Search needs the Pagefind index, which `hugo server` does not build. To try search locally,
-build the index once into `static/` (git-ignored), then run the server:
+**4. (Optional) Make search work locally.** `hugo server` does not build the Pagefind search
+index, so the search page and Ctrl/Cmd+K show no results until you build it once into
+`static/pagefind/` (git-ignored, never committed):
 
 ```bash
 hugo -D
-npx -y pagefind --site public --output-path static/pagefind
-# without Node: uv run --with 'pagefind[extended]' python -m pagefind --site public --output-path static/pagefind
+npx -y pagefind --site public --output-path static/pagefind      # needs Node.js
+# or, with Python instead of Node:
+# pip install 'pagefind[extended]' && python -m pagefind --site public --output-path static/pagefind
 hugo server -D
 ```
 
-Re-run the middle step whenever you want search to pick up new posts.
+Re-run the Pagefind step whenever you want search to pick up new posts.
+
+Notes:
+
+- KaTeX's stylesheet and Mermaid load from a CDN, so pages with math or diagrams need an
+  internet connection to render properly in the preview.
+- To push from the new machine, sign in to GitHub first (`gh auth login`, or set up SSH
+  keys). The live site updates about a minute after each push to `master`.
+- Delete `public/`, `resources/` and `.hugo_build.lock` whenever you like; they are
+  build output and are git-ignored.
 
 ## Deployment
 

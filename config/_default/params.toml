@@ -39,12 +39,11 @@ hideFooter = false
 # ---------------------------------------------------------------------------
 [manlog]
   name = "Manoj Guduru"
-  tagline = "Notes on machine learning, math, and competitive programming."
+  # One line under your name on the landing page, e.g. "ML engineer at Acme · Hyderabad". Empty hides it.
+  tagline = ""
   # Put a square photo at static/images/avatar.jpg and set this to "images/avatar.jpg".
   # Leave empty to show a monogram instead.
   avatar = ""
-  # Number of latest posts shown as cards on the landing page.
-  homeRecentPosts = 3
   # The right-side table-of-contents rail appears on posts with at least this many h2/h3 headings.
   tocMinHeadings = 3
   # Ctrl/Cmd+K search dialog on every page (needs the Pagefind index, see README.md).

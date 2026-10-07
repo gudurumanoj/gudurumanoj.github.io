@@ -27,18 +27,5 @@
   {{- with .Content }}
   <section class="ml-intro-body md-content post-content">{{ . }}</section>
   {{- end }}
-
-  {{- $posts := where site.RegularPages "Type" "in" site.Params.mainSections }}
-  {{- with first ($cfg.homeRecentPosts | default 3) $posts.ByDate.Reverse }}
-  <section class="ml-recent">
-    <div class="ml-section-head">
-      <h2>Recent writing</h2>
-      <a href="{{ "blog/" | relURL }}">All posts &rarr;</a>
-    </div>
-    <div class="ml-grid">
-      {{- range . }}{{ partial "manlog/card.html" . }}{{ end }}
-    </div>
-  </section>
-  {{- end }}
 </div>
 {{- end }}

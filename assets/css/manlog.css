@@ -37,8 +37,7 @@
 }
 
 /* ---------- wider canvas for grid pages ---------- */
-.main:has(.ml-listing),
-.main:has(.ml-home) {
+.main:has(.ml-listing) {
   max-width: calc(var(--ml-wide) + var(--gap, 24px) * 2);
 }
 .ml-listing,
@@ -53,7 +52,6 @@
 
 /* ---------- landing page ---------- */
 .ml-home > section { max-width: 760px; margin-inline: auto; }
-.ml-home > .ml-recent { max-width: none; }
 
 .ml-intro {
   display: flex;
@@ -94,16 +92,9 @@
 .ml-socials a:hover { color: var(--ml-text); background: var(--ml-card-bg); }
 
 .ml-intro-body { margin-bottom: 40px; }
-
-.ml-section-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin: 16px 0 18px;
-}
-.ml-section-head h2 { font-size: 22px; margin: 0; color: var(--ml-text); }
-.ml-section-head a { color: var(--ml-muted); font-size: 15px; }
-.ml-section-head a:hover { color: var(--ml-accent); }
+.ml-intro-body h2 { font-size: 20px; margin: 32px 0 12px; }
+.ml-intro-body ul { padding-inline-start: 20px; }
+.ml-intro-body li { margin-bottom: 6px; }
 
 @media (max-width: 600px) {
   .ml-intro { flex-direction: column; align-items: flex-start; gap: 18px; margin-top: 24px; }
@@ -113,6 +104,29 @@
 /* ---------- listing pages ---------- */
 .ml-listing-head { margin: 8px 0 28px; }
 .ml-listing-head h1 { font-size: 40px; margin: 4px 0 8px; color: var(--ml-text); }
+.ml-title-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.ml-search-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px 7px 12px;
+  font-size: 14px;
+  color: var(--ml-muted);
+  background: var(--ml-card-bg);
+  border: 1px solid var(--ml-border);
+  border-radius: 8px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.ml-search-btn:hover { color: var(--ml-text); border-color: var(--ml-muted); }
+.ml-search-btn kbd {
+  font-family: var(--ml-mono);
+  font-size: 11px;
+  padding: 1px 6px;
+  border: 1px solid var(--ml-border);
+  border-radius: 4px;
+  background: var(--ml-soft);
+}
+@media (max-width: 600px) { .ml-search-btn kbd { display: none; } }
 .ml-listing-desc { color: var(--ml-muted); max-width: 720px; }
 .ml-back { font-size: 14px; color: var(--ml-muted); }
 .ml-back:hover { color: var(--ml-accent); }
@@ -304,6 +318,34 @@ pre.mermaid {
   border: 0;
 }
 pre.mermaid:not([data-processed]) { color: transparent; min-height: 80px; }
+
+/* Hand-written SVG diagrams: <figure class="ml-diagram"><svg ...>. See WRITING.md. */
+.ml-diagram { margin: 28px 0; }
+.ml-diagram svg { display: block; width: 100%; height: auto; font-family: inherit; overflow: visible; }
+.ml-diagram > figcaption,
+.md-content .ml-diagram > figcaption { margin: 8px 0 0; font-size: 14px; font-weight: normal; color: var(--ml-muted); text-align: center; }
+.ml-diagram text { text-anchor: middle; font-size: 17px; fill: var(--ml-text); }
+.ml-diagram text.name { font-weight: 600; }
+.ml-diagram text.note { font-size: 14px; fill: var(--ml-muted); }
+.ml-diagram text.label { font-size: 15px; fill: var(--ml-muted); }
+.ml-diagram text.left { text-anchor: start; }
+.ml-diagram .box { fill: var(--ml-soft); stroke: var(--ml-muted); stroke-width: 1; }
+.ml-diagram .group { fill: none; stroke: #b8ab8e; stroke-width: 1; stroke-dasharray: 6 6; }
+.ml-diagram .arrow { fill: none; stroke: var(--ml-muted); stroke-width: 1.5; marker-end: url(#ml-arrow); }
+.ml-diagram .arrow.both { marker-start: url(#ml-arrow); }
+.ml-diagram .arrow.dashed { stroke-dasharray: 5 4; }
+.ml-diagram .arrow.plain { marker-end: none; }
+.ml-diagram marker path { fill: var(--ml-muted); }
+.ml-diagram .box.violet { fill: #ece7f3; stroke: #7a6aa8; }
+.ml-diagram .box.green { fill: #e4eee6; stroke: #5c8a6a; }
+.ml-diagram .box.blue { fill: #e3ebf1; stroke: #5f7f99; }
+.ml-diagram .box.rose { fill: #f3e6e2; stroke: #a66b4f; }
+.ml-diagram .box.sand { fill: #ece8df; stroke: #8a8270; }
+.ml-diagram text.note.violet { fill: #5f5680; }
+.ml-diagram text.note.green { fill: #4f7a5c; }
+.ml-diagram text.note.blue { fill: #4c6a82; }
+.ml-diagram text.note.rose { fill: #895940; }
+.ml-diagram text.note.sand { fill: #6b655a; }
 
 /* ---------- right-side TOC rail ---------- */
 .ml-toc {

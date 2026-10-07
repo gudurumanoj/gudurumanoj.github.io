@@ -121,6 +121,44 @@ sequenceDiagram
 
 Diagrams are drawn in the site's colours.
 
+## Custom diagrams with SVG
+
+Mermaid places boxes automatically. When the layout matters, write an SVG directly in the
+post: each box, label and arrow sits exactly where you put it. Styles such as `box violet`,
+`name`, `note` and `arrow` come from the site's CSS, so only coordinates and text go here.
+
+<figure class="ml-diagram">
+<svg viewBox="0 0 860 330" role="img" aria-label="Crawler worker: parser, link extractor and URL filter feeding shared stores">
+  <defs><marker id="ml-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>
+  <rect class="group" x="20" y="10" width="820" height="160" rx="14"/>
+  <text class="label" x="430" y="40">One worker process: stateless, per page</text>
+  <rect class="box violet" x="45" y="62" width="220" height="80" rx="8"/>
+  <text class="name" x="155" y="96">Content parser</text>
+  <text class="note violet" x="155" y="120">Parse HTML</text>
+  <rect class="box violet" x="320" y="62" width="220" height="80" rx="8"/>
+  <text class="name" x="430" y="96">Link extractor</text>
+  <text class="note violet" x="430" y="120">Find, normalize</text>
+  <rect class="box violet" x="595" y="62" width="220" height="80" rx="8"/>
+  <text class="name" x="705" y="96">URL filter</text>
+  <text class="note violet" x="705" y="120">Cheap rules</text>
+  <rect class="box green" x="45" y="235" width="220" height="80" rx="8"/>
+  <text class="name" x="155" y="269">Content seen?</text>
+  <text class="note green" x="155" y="293">Shared store</text>
+  <rect class="box sand" x="320" y="235" width="220" height="80" rx="8"/>
+  <text class="name" x="430" y="269">URL frontier</text>
+  <text class="note" x="430" y="293">Queues</text>
+  <rect class="box green" x="595" y="235" width="220" height="80" rx="8"/>
+  <text class="name" x="705" y="269">URL seen?</text>
+  <text class="note green" x="705" y="293">Shared, billions</text>
+  <line class="arrow" x1="268" y1="102" x2="316" y2="102"/>
+  <line class="arrow" x1="543" y1="102" x2="591" y2="102"/>
+  <line class="arrow" x1="155" y1="145" x2="155" y2="231"/>
+  <line class="arrow" x1="705" y1="145" x2="705" y2="231"/>
+  <line class="arrow" x1="592" y1="275" x2="544" y2="275"/>
+</svg>
+<figcaption>A web crawler's worker pipeline, drawn as SVG in the Markdown.</figcaption>
+</figure>
+
 ## Interactive demos
 
 Any self-contained HTML file in the post folder can be embedded. This is how to include

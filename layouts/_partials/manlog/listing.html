@@ -11,7 +11,13 @@
     {{- else if eq $page.Kind "term" }}
     <a class="ml-back" href="{{ $page.Parent.RelPermalink }}">&larr; All tags</a>
     {{- end }}
-    <h1>{{ if eq $page.Kind "term" }}#{{ end }}{{ $page.Title }}</h1>
+    <div class="ml-title-row">
+      <h1>{{ if eq $page.Kind "term" }}#{{ end }}{{ $page.Title }}</h1>
+      <a class="ml-search-btn" href="{{ "search/" | relURL }}" data-ml-search>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        Search{{ if site.Params.manlog.searchModal }} <kbd>Ctrl K</kbd>{{ end }}
+      </a>
+    </div>
     {{- with $page.Description }}<p class="ml-listing-desc">{{ . | markdownify }}</p>{{ end }}
     {{- with $page.Content }}<div class="ml-listing-desc md-content">{{ . }}</div>{{ end }}
 

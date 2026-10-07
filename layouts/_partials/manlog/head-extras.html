@@ -44,11 +44,21 @@
   const modal = document.createElement("pagefind-modal");
   modal.setAttribute("reset-on-close", "");
   document.body.append(modal);
+  const toggle = () => customElements.whenDefined("pagefind-modal").then(() => (modal.isOpen ? modal.close() : modal.open()));
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k" && !e.target.closest("input, textarea, [contenteditable]")) {
       e.preventDefault();
-      customElements.whenDefined("pagefind-modal").then(() => (modal.isOpen ? modal.close() : modal.open()));
+      toggle();
     }
   });
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("[data-ml-search]") && !(e.ctrlKey || e.metaKey || e.shiftKey)) {
+      e.preventDefault();
+      toggle();
+    }
+  });
+  if (/Mac|iPhone|iPad/.test(navigator.platform)) {
+    document.querySelectorAll("[data-ml-search] kbd").forEach((k) => (k.textContent = "⌘ K"));
+  }
 </script>
 {{- end }}

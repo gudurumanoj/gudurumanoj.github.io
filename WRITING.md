@@ -174,6 +174,74 @@ flowchart LR
 Any Mermaid diagram type works (flowchart, sequence, class, state, gantt, pie, and more). See the
 [Mermaid docs](https://mermaid.js.org/intro/). Diagrams use the site palette (set in `assets/js/mermaid-init.js`).
 
+Mermaid chooses the layout itself. That is fine for most flowcharts, but it sometimes rearranges
+boxes or bends arrows in ways you didn't want. When the exact layout matters, draw the diagram
+in SVG instead (next section).
+
+## Custom diagrams (SVG)
+
+Any SVG pasted into a post is drawn in place, so you can position every box and arrow exactly.
+The site's CSS supplies the colours and fonts, so a diagram is only coordinates and text. Copy
+this template:
+
+```html
+<figure class="ml-diagram">
+<svg viewBox="0 0 860 230" role="img" aria-label="Describe the diagram for screen readers">
+  <defs><marker id="ml-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>
+  <rect class="group" x="20" y="10" width="540" height="160" rx="14"/>
+  <text class="label" x="290" y="40">A dashed group with a label</text>
+  <rect class="box violet" x="45" y="62" width="220" height="80" rx="8"/>
+  <text class="name" x="155" y="96">First step</text>
+  <text class="note violet" x="155" y="120">What it does</text>
+  <rect class="box violet" x="320" y="62" width="220" height="80" rx="8"/>
+  <text class="name" x="430" y="96">Second step</text>
+  <text class="note violet" x="430" y="120">What it does</text>
+  <rect class="box green" x="595" y="62" width="220" height="80" rx="8"/>
+  <text class="name" x="705" y="96">Storage</text>
+  <text class="note green" x="705" y="120">Shared</text>
+  <line class="arrow" x1="268" y1="102" x2="316" y2="102"/>
+  <line class="arrow" x1="543" y1="102" x2="591" y2="102"/>
+  <path class="arrow dashed" d="M155,145 V220 H705 V145"/>
+</svg>
+<figcaption>Optional caption.</figcaption>
+</figure>
+```
+
+**Coordinates.** `viewBox="0 0 W H"` sets the drawing area. The SVG always stretches to the
+post width and scales down on phones, so only the proportions matter. `(0,0)` is the top-left
+corner and `y` grows downward. A box at `x, y` with size `w × h` has its centre at
+`x + w/2, y + h/2`. Put a box's text at its centre `x`: the `name` line about 34 units below
+the box's top and the `note` line about 58 units below. The three-column grid above (boxes 220
+wide at `x` = 45, 320, 595) fits most diagrams. For a lower row, add 150–170 to `y`.
+
+**Classes.**
+
+| Element | Class | Look |
+|---------|-------|------|
+| `<rect>` | `box violet`, `box green`, `box blue`, `box rose`, `box sand` | Filled box with a matching border (`box` alone is neutral) |
+| `<rect>` | `group` | Dashed outline for grouping boxes |
+| `<text>` | `name` | Bold box title |
+| `<text>` | `note` plus a colour | Smaller, muted second line in the box's colour |
+| `<text>` | `label` | Muted label for groups or arrows. Add `left` to left-align any text |
+| `<line>` / `<path>` | `arrow` | Arrow with a head at the end. Add `both` for two heads, `dashed` for a dashed line, `plain` for no head |
+
+Straight arrows are `<line x1 y1 x2 y2>`. For elbows, use a `<path>`: `d="M x,y V y2 H x2"` moves
+to a start point, goes vertically to `y2`, then horizontally to `x2`. End arrows about 4 units
+short of the box edge so the head doesn't overlap the border.
+
+**Rules.**
+
+- **No blank lines anywhere between `<figure>` and `</figure>`.** A blank line ends the HTML
+  block, and the rest is printed as text.
+- Keep the `<defs>` line in every diagram, because the arrowheads come from it. Two diagrams on
+  one page can both use `id="ml-arrow"`.
+- Text inside the SVG is real text, so it is searchable and stays sharp at any zoom.
+
+**Let Claude draw it.** Give Claude a sketch, a screenshot, or a description, plus this template,
+and ask: *"Recreate this diagram as SVG in exactly this format, using only these classes, with
+no blank lines."* Paste the result into the post. The feature-tour post has a full example
+(`content/blog/building-blocks/manlog-feature-tour/index.md`).
+
 ## Interactive demos and Claude artifacts
 
 Any self-contained HTML page can be embedded in a post:
@@ -250,9 +318,14 @@ nested (`content/blog/ml/transformers/_index.md`); posts in sub-folders still ap
 
 ## The landing page
 
-- **Text**: edit `content/_index.md` (normal Markdown).
-- **Name, tagline, photo, social links, number of recent posts**: edit the `[manlog]` section
-  of `config/_default/params.toml`. For a photo, put a square image at
+The home page is about you, not the blog. At the top it shows your name, an optional one-line
+tagline, a photo or monogram, and social icons. Below that comes whatever you write in
+`content/_index.md`.
+
+- **Text**: edit `content/_index.md` (normal Markdown). `##` headings become small section
+  titles.
+- **Name, tagline, photo, social links**: edit the `[manlog]` section of
+  `config/_default/params.toml`. For a photo, put a square image at
   `static/images/avatar.jpg` and set `avatar = "images/avatar.jpg"`.
 - **Social icons available**: `github`, `x`, `linkedin`, `email`, `scholar`, `rss`, `link`.
 
@@ -263,9 +336,35 @@ nested (`content/blog/ml/transformers/_index.md`); posts in sub-folders still ap
   icon = "email"
 ```
 
+A typical academic-style layout for `content/_index.md` (keep the sections you need):
+
+```markdown
+Hi, I'm Manoj. Two or three sentences: what you work on, where, and what you care about.
+
+## Currently
+
+Working on ... at [Place](https://...). Previously ... at ....
+
+## Interests
+
+Large-scale training, numerical methods, ...
+
+## Publications
+
+- **Paper title.** A. Author, **M. Guduru**, B. Author. *Venue* 2026.
+  [paper](https://arxiv.org/abs/...) · [code](https://github.com/...)
+
+## News
+
+- **Oct 2026**: Something happened.
+```
+
 ## The nav bar
 
-Items come from `config/_default/menus.toml`. Lower `weight` = further left.
+Items come from `config/_default/menus.toml`. Lower `weight` = further left. Right now
+it only has **Blog**. Tags, the archive and search still work: they're reached from the blog
+page (tag chips, the search button, Ctrl/Cmd+K) or directly at `/tags/`, `/archives/` and
+`/search/`. Add them back with `[[main]]` blocks if you want them in the bar.
 
 **Link to an existing page or an external site**:
 
@@ -308,7 +407,7 @@ create `layouts/projects/list.html` containing:
 {{- end }}
 ```
 
-**A single standalone page** (like About): create `content/now.md` with a `title`, write
+**A single standalone page** (like Now or Talks): create `content/now.md` with a `title`, write
 Markdown below it, and add a `[[main]]` entry with `url = "/now/"`.
 
 To remove an item, delete its `[[main]]` block.
