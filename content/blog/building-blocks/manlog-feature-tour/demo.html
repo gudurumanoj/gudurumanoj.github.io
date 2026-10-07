@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gradient descent demo</title>
+<style>
+  html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; background: #fafafa; }
+  canvas { display: block; width: 100%; height: calc(100% - 44px); cursor: crosshair; }
+  .bar { display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 14px; font-size: 14px; color: #333; }
+  input[type=range] { width: 140px; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <label>Learning rate <input id="lr" type="range" min="0.01" max="0.95" step="0.01" value="0.15"></label>
+  <span id="lrv">0.15</span>
+  <span id="step" style="margin-left:auto"></span>
+</div>
+<canvas id="c"></canvas>
+<script>
+const c = document.getElementById("c"), ctx = c.getContext("2d");
+const lr = document.getElementById("lr"), lrv = document.getElementById("lrv"), stepEl = document.getElementById("step");
+const A = 1.0, B = 4.0; // f(x, y) = A x^2 + B y^2
+let p, path, t;
+
+function size() {
+  const r = window.devicePixelRatio || 1;
+  c.width = c.clientWidth * r; c.height = c.clientHeight * r;
+  ctx.setTransform(r, 0, 0, r, 0, 0);
+}
+const W = () => c.clientWidth, H = () => c.clientHeight;
+const toPx = (x, y) => [W() / 2 + x * W() / 6, H() / 2 - y * H() / 3];
+const fromPx = (px, py) => [(px - W() / 2) / (W() / 6), -(py - H() / 2) / (H() / 3)];
+
+function contours() {
+  for (let k = 1; k <= 12; k++) {
+    const level = k * k * 0.08;
+    ctx.beginPath();
+    for (let a = 0; a <= Math.PI * 2 + 0.01; a += 0.05) {
+      const [px, py] = toPx(Math.sqrt(level / A) * Math.cos(a), Math.sqrt(level / B) * Math.sin(a));
+      a === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.strokeStyle = `hsl(${220 - k * 12} 60% 60% / 0.5)`;
+    ctx.stroke();
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W(), H());
+  contours();
+  ctx.beginPath();
+  path.forEach(([x, y], i) => { const [px, py] = toPx(x, y); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
+  ctx.strokeStyle = "#b4233c"; ctx.lineWidth = 2; ctx.stroke(); ctx.lineWidth = 1;
+  path.forEach(([x, y]) => { const [px, py] = toPx(x, y); ctx.beginPath(); ctx.arc(px, py, 3, 0, 7); ctx.fillStyle = "#b4233c"; ctx.fill(); });
+  stepEl.textContent = `step ${t}   f = ${(A * p[0] ** 2 + B * p[1] ** 2).toFixed(4)}`;
+}
+
+function reset(x, y) { p = [x, y]; path = [[x, y]]; t = 0; }
+
+function tick() {
+  const eta = parseFloat(lr.value) / B;
+  if (t < 60 && Math.hypot(...p) > 1e-3 && Math.hypot(...p) < 50) {
+    p = [p[0] - eta * 2 * A * p[0], p[1] - eta * 2 * B * p[1]];
+    path.push(p); t++;
+  }
+  draw();
+  setTimeout(tick, 120);
+}
+
+c.addEventListener("click", (e) => { const r = c.getBoundingClientRect(); reset(...fromPx(e.clientX - r.left, e.clientY - r.top)); });
+lr.addEventListener("input", () => { lrv.textContent = lr.value; reset(path[0][0], path[0][1]); });
+window.addEventListener("resize", () => { size(); draw(); });
+size(); reset(-2.6, 1.2); tick();
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{{- /*
+  Short looping clip (a lighter alternative to GIFs) or a regular video with controls.
+  Usage: {{< video src="clip.mp4" caption="..." >}}            -> autoplay, loop, muted, like a GIF
+         {{< video src="talk.mp4" controls="true" >}}           -> normal player
+*/ -}}
+{{- $src := .Get "src" | default (.Get 0) }}
+{{- $url := $src }}
+{{- with .Page.Resources.Get $src }}{{ $url = .RelPermalink }}{{ end }}
+{{- $controls := eq (.Get "controls") "true" }}
+<figure class="ml-video">
+  <video src="{{ $url }}" playsinline preload="metadata"
+    {{- if $controls }} controls{{ else }} autoplay loop muted{{ end }}
+    {{- with .Get "width" }} style="max-width: {{ . }}"{{ end }}></video>
+  {{- with .Get "caption" }}<figcaption>{{ . | markdownify }}</figcaption>{{ end }}
+</figure>

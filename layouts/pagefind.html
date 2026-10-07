@@ -1,0 +1,31 @@
+{{- define "main" }}
+<div class="ml-search" data-pagefind-ignore="all">
+  <header class="ml-listing-head">
+    <h1>{{ .Title }}</h1>
+    {{- with .Content }}<div class="ml-listing-desc">{{ . }}</div>{{ end }}
+  </header>
+  <pagefind-config base-url="{{ "/" | relURL }}"></pagefind-config>
+  <pagefind-input></pagefind-input>
+  <div class="ml-search-filters">
+    <pagefind-filter-dropdown filter="tag" label="Tag"></pagefind-filter-dropdown>
+    <pagefind-filter-dropdown filter="category" label="Category"></pagefind-filter-dropdown>
+  </div>
+  <pagefind-summary></pagefind-summary>
+  <pagefind-results></pagefind-results>
+  <noscript>Search needs JavaScript. Try the <a href="{{ "tags/" | relURL }}">tags</a> or
+    <a href="{{ "archives/" | relURL }}">archive</a> instead.</noscript>
+</div>
+<script type="module">
+  // Support /search/?q=term links.
+  const q = new URLSearchParams(location.search).get("q");
+  if (q) {
+    customElements.whenDefined("pagefind-input").then(() => {
+      const input = document.querySelector("pagefind-input input");
+      if (input) {
+        input.value = q;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    });
+  }
+</script>
+{{- end }}

@@ -1,0 +1,16 @@
+{{- $p := . }}
+{{- if gt $p.TotalPages 1 }}
+<nav class="ml-pagination" aria-label="Pagination">
+  {{- if $p.HasPrev }}<a class="ml-page-prev" href="{{ $p.Prev.URL }}">&larr; Newer</a>{{ else }}<span></span>{{ end }}
+  <span class="ml-page-numbers">
+    {{- range $p.Pagers }}
+      {{- if eq .PageNumber $p.PageNumber }}
+      <span class="current" aria-current="page">{{ .PageNumber }}</span>
+      {{- else }}
+      <a href="{{ .URL }}">{{ .PageNumber }}</a>
+      {{- end }}
+    {{- end }}
+  </span>
+  {{- if $p.HasNext }}<a class="ml-page-next" href="{{ $p.Next.URL }}">Older &rarr;</a>{{ else }}<span></span>{{ end }}
+</nav>
+{{- end }}

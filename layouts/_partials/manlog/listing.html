@@ -1,0 +1,44 @@
+{{- /*
+  Shared card-grid page for /blog/, its category folders, and /tags/<tag>/.
+  Context: dict "page" <page> "pages" <collection of posts>
+*/ -}}
+{{- $page := .page }}
+{{- $blog := site.GetPage "/blog" }}
+<div class="ml-listing" data-pagefind-ignore="all">
+  <header class="ml-listing-head">
+    {{- if and (eq $page.Kind "section") (ne $page.Path "/blog") }}
+    <a class="ml-back" href="{{ $page.Parent.RelPermalink }}">&larr; {{ $page.Parent.Title }}</a>
+    {{- else if eq $page.Kind "term" }}
+    <a class="ml-back" href="{{ $page.Parent.RelPermalink }}">&larr; All tags</a>
+    {{- end }}
+    <h1>{{ if eq $page.Kind "term" }}#{{ end }}{{ $page.Title }}</h1>
+    {{- with $page.Description }}<p class="ml-listing-desc">{{ . | markdownify }}</p>{{ end }}
+    {{- with $page.Content }}<div class="ml-listing-desc md-content">{{ . }}</div>{{ end }}
+
+    {{- $sections := cond (eq $page.Kind "section") $page.Sections $blog.Sections }}
+    {{- if not $sections }}{{ $sections = $blog.Sections }}{{ end }}
+    {{- with $sections }}
+    <nav class="ml-categories" aria-label="Categories">
+      {{- if eq $page.Path "/blog" }}
+      <a class="ml-category active" href="{{ $blog.RelPermalink }}">All <span>{{ len $blog.RegularPagesRecursive }}</span></a>
+      {{- else if eq $page.Kind "term" }}
+      <a class="ml-category" href="{{ $blog.RelPermalink }}">All <span>{{ len $blog.RegularPagesRecursive }}</span></a>
+      {{- end }}
+      {{- range . }}
+      <a class="ml-category{{ if eq .Path $page.Path }} active{{ end }}" href="{{ .RelPermalink }}">
+        {{- .Title }} <span>{{ len .RegularPagesRecursive }}</span></a>
+      {{- end }}
+    </nav>
+    {{- end }}
+  </header>
+
+  {{- $paginator := $page.Paginate .pages.ByDate.Reverse }}
+  {{- with $paginator.Pages }}
+  <div class="ml-grid">
+    {{- range . }}{{ partial "manlog/card.html" . }}{{ end }}
+  </div>
+  {{- else }}
+  <p class="ml-empty">Nothing here yet.</p>
+  {{- end }}
+  {{- partial "manlog/pagination.html" $paginator }}
+</div>

@@ -1,0 +1,44 @@
+{{- define "main" }}
+{{- $cfg := site.Params.manlog }}
+<div class="ml-home" data-pagefind-ignore="all">
+  <section class="ml-intro">
+    {{- with $cfg.avatar }}
+    <img class="ml-avatar" src="{{ . | relURL }}" alt="{{ $cfg.name }}" width="112" height="112">
+    {{- else }}
+    <div class="ml-avatar ml-monogram" aria-hidden="true">
+      {{- range first 2 (split ($cfg.name | default site.Title) " ") }}{{ substr . 0 1 }}{{ end -}}
+    </div>
+    {{- end }}
+    <div>
+      <h1 class="ml-name">{{ $cfg.name | default site.Title }}</h1>
+      {{- with $cfg.tagline }}<p class="ml-tagline">{{ . }}</p>{{ end }}
+      {{- with $cfg.socials }}
+      <ul class="ml-socials">
+        {{- range . }}
+        <li><a href="{{ .url | relURL }}" title="{{ .name }}" aria-label="{{ .name }}"
+          {{- if hasPrefix .url "http" }} target="_blank" rel="noopener me"{{ end }}>
+          {{- partial "manlog/icon.html" .icon }}</a></li>
+        {{- end }}
+      </ul>
+      {{- end }}
+    </div>
+  </section>
+
+  {{- with .Content }}
+  <section class="ml-intro-body md-content post-content">{{ . }}</section>
+  {{- end }}
+
+  {{- $posts := where site.RegularPages "Type" "in" site.Params.mainSections }}
+  {{- with first ($cfg.homeRecentPosts | default 3) $posts.ByDate.Reverse }}
+  <section class="ml-recent">
+    <div class="ml-section-head">
+      <h2>Recent writing</h2>
+      <a href="{{ "blog/" | relURL }}">All posts &rarr;</a>
+    </div>
+    <div class="ml-grid">
+      {{- range . }}{{ partial "manlog/card.html" . }}{{ end }}
+    </div>
+  </section>
+  {{- end }}
+</div>
+{{- end }}

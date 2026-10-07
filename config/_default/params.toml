@@ -1,0 +1,75 @@
+# ---------------------------------------------------------------------------
+# man'log settings: read by our own templates in layouts/, independent of the theme.
+# ---------------------------------------------------------------------------
+[manlog]
+  name = "Manoj Guduru"
+  tagline = "Notes on machine learning, math, and competitive programming."
+  # Put a square photo at static/images/avatar.jpg and set this to "images/avatar.jpg".
+  # Leave empty to show a monogram instead.
+  avatar = ""
+  # Number of latest posts shown as cards on the landing page.
+  homeRecentPosts = 3
+  # The right-side table-of-contents rail appears on posts with at least this many h2/h3 headings.
+  tocMinHeadings = 3
+  # Ctrl/Cmd+K search dialog on every page (needs the Pagefind index, see README.md).
+  searchModal = true
+  # Loaded only on pages that use them.
+  # katexCSS must match the KaTeX version bundled in Hugo (0.18.4 as of Hugo v0.166-0.167);
+  # check Hugo's release notes when bumping HUGO_VERSION in .github/workflows/hugo.yml.
+  katexCSS = "https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.css"
+  mermaidJS = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs"
+
+  # Icons available: github, x, linkedin, email, scholar, rss, link
+  [[manlog.socials]]
+    name = "GitHub"
+    url = "https://github.com/gudurumanoj"
+    icon = "github"
+  # [[manlog.socials]]
+  #   name = "Email"
+  #   url = "mailto:you@example.com"
+  #   icon = "email"
+  # [[manlog.socials]]
+  #   name = "LinkedIn"
+  #   url = "https://www.linkedin.com/in/<handle>/"
+  #   icon = "linkedin"
+  # [[manlog.socials]]
+  #   name = "Google Scholar"
+  #   url = "https://scholar.google.com/citations?user=<id>"
+  #   icon = "scholar"
+  [[manlog.socials]]
+    name = "RSS"
+    url = "/index.xml"
+    icon = "rss"
+
+# ---------------------------------------------------------------------------
+# Generic Hugo params most themes understand.
+# ---------------------------------------------------------------------------
+description = "man'log: Manoj Guduru's notes on ML, math, and competitive programming."
+mainSections = ["blog"]
+env = "production"
+
+# ---------------------------------------------------------------------------
+# PaperMod-specific params. Other themes ignore these keys.
+# ---------------------------------------------------------------------------
+defaultTheme = "auto"
+disableThemeToggle = false
+ShowReadingTime = true
+ShowCodeCopyButtons = true
+ShowBreadCrumbs = true
+ShowPostNavLinks = true
+ShowWordCount = false
+ShowToc = false
+hideFooter = false
+
+[assets]
+  favicon = "favicon.ico"
+  favicon16x16 = "favicon-16x16.png"
+  favicon32x32 = "favicon-32x32.png"
+  apple_touch_icon = "apple-touch-icon.png"
+  safari_pinned_tab = "favicon.svg"
+  theme_color = "#1d1e20"
+
+[label]
+  text = "man'log"
+  icon = "favicon.svg"
+  iconHeight = 24

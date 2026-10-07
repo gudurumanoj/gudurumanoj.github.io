@@ -1,0 +1,218 @@
+# man'log
+
+Source for [gudurumanoj.github.io](https://gudurumanoj.github.io/): a personal site with a
+landing page and a blog of learning notes, built with [Hugo](https://gohugo.io/) and deployed
+to GitHub Pages by GitHub Actions.
+
+- **This file** explains how the repository is put together: layout, architecture, build,
+  deploy, and how to swap the theme.
+- **[WRITING.md](WRITING.md)** is the day-to-day guide: writing posts, adding images, math,
+  diagrams and demos, tags, categories, and nav bar entries.
+
+## Site map
+
+| URL | What it shows | Rendered by |
+|-----|---------------|-------------|
+| `/` | Intro, photo/monogram, social links, latest 3 posts | `layouts/home.html` |
+| `/blog/` | All posts as a paginated card grid with category chips | `layouts/blog/list.html` |
+| `/blog/<category>/` | Same grid, filtered to one folder | `layouts/blog/list.html` |
+| `/blog/<category>/<post>/` | A post | the theme's single-page template |
+| `/tags/`, `/tags/<tag>/` | Tag list; card grid per tag | theme (`/tags/`), `layouts/term.html` |
+| `/archives/` | Every post by year | theme (PaperMod `archives` layout) |
+| `/search/` | Full search page with tag/category filters | `layouts/pagefind.html` |
+| `/about/` | About page | theme |
+
+## Repository layout
+
+```
+.
+├── config/_default/
+│   ├── hugo.toml        # site title, baseURL, theme, Markdown/math settings, pagination
+│   ├── params.toml      # [manlog] settings for our layer + theme-specific params
+│   └── menus.toml       # top navigation bar
+├── content/             # everything you write (Markdown)
+│   ├── _index.md        # landing page intro text
+│   ├── about.md, search.md, archives.md
+│   └── blog/
+│       ├── _index.md            # /blog/ title + description
+│       ├── <category>/_index.md # one folder per category (ml, math, cp, ...)
+│       └── <category>/<post>/index.md  # one folder per post ("page bundle")
+├── layouts/             # man'log feature layer (overrides/extends the theme)
+│   ├── home.html                  # landing page
+│   ├── blog/list.html             # card grid for /blog/ and every category
+│   ├── term.html                  # card grid for /tags/<tag>/
+│   ├── pagefind.html              # search page
+│   ├── _markup/
+│   │   ├── render-passthrough.html        # $...$ / $$...$$ -> KaTeX HTML at build time
+│   │   └── render-codeblock-mermaid.html  # ```mermaid blocks -> diagrams
+│   ├── _shortcodes/
+│   │   ├── embed.html             # {{< embed >}} iframe for HTML demos / Claude artifacts
+│   │   └── video.html             # {{< video >}} looping clips
+│   └── _partials/
+│       ├── manlog/head-extras.html  # the one place our CSS/JS gets added to <head>
+│       ├── manlog/card.html         # one post card
+│       ├── manlog/listing.html      # shared grid page (header, chips, grid, pagination)
+│       ├── manlog/pagination.html
+│       ├── manlog/icon.html         # social icons
+│       ├── extend_head.html         # theme hook shims: each is one line that
+│       ├── extend-head.html         #   includes manlog/head-extras.html, under the
+│       ├── head-additions.html      #   hook names used by PaperMod, Blowfish/Congo,
+│       └── head/custom.html         #   Ananke and Stack respectively
+├── assets/
+│   ├── css/manlog.css     # styles for cards, landing, TOC rail, embeds, search
+│   └── js/
+│       ├── toc-rail.js    # right-side contents rail on posts
+│       └── mermaid-init.js
+├── archetypes/blog.md     # front matter template used by `hugo new blog/...`
+├── static/                # copied as-is: favicons, webmanifest, (optional) avatar
+├── themes/PaperMod/       # current theme (git submodule)
+├── pagefind.yml           # what the search index includes
+└── .github/workflows/hugo.yml   # build + deploy to GitHub Pages
+```
+
+## Architecture
+
+The site is three layers. Hugo merges them at build time; a file in the project's
+`layouts/` always wins over a file with the same name in the theme.
+
+```mermaid
+flowchart LR
+  content["content/ : Markdown posts + their files"] --> hugo[Hugo build]
+  layer["layouts/ + assets/ : man'log feature layer"] --> hugo
+  theme["themes/PaperMod : look and feel"] --> hugo
+  config["config/_default/ : settings, menus, theme choice"] --> hugo
+  hugo --> public["public/ : static HTML"]
+  public --> pagefind["Pagefind : builds search index"]
+  pagefind --> pages["GitHub Pages"]
+```
+
+1. **Content** (`content/`) is plain Markdown with front matter. It contains no theme-specific
+   shortcodes, so it moves between themes untouched.
+2. **The man'log layer** (`layouts/`, `assets/`) owns every feature that matters: math, Mermaid,
+   embeds, cards, the landing page, the contents rail, and search. Our page templates only fill
+   the `main` block, which nearly every Hugo theme defines, so the theme still draws the header,
+   footer and fonts around them. Colours come from the theme's CSS variables when present, with
+   fallbacks.
+3. **The theme** (`themes/PaperMod`) controls the look: header, nav bar, footer, typography,
+   light/dark toggle, and the single-post page.
+
+### How each feature works
+
+- **Math**: Goldmark's `passthrough` extension (in `hugo.toml`) hands everything between
+  `$...$`, `$$...$$`, `\(...\)` and `\[...\]` to `render-passthrough.html`, which calls
+  `transform.ToMath` (KaTeX compiled into Hugo). The HTML is produced at build time, so
+  readers download only the KaTeX stylesheet. The stylesheet is added only to pages that
+  contain math, and its version (`katexCSS` in `params.toml`) must match the KaTeX version
+  bundled with Hugo.
+- **Mermaid**: `render-codeblock-mermaid.html` turns ` ```mermaid ` blocks into
+  `<pre class="mermaid">` and flags the page; `head-extras.html` then loads
+  `mermaid-init.js` (Mermaid from a CDN) only on flagged pages. Diagrams re-render when
+  the light/dark toggle flips.
+- **Embeds**: only Markdown counts as content (`[contentTypes]` in `hugo.toml`), so an HTML
+  file in a post folder is published as a plain file. `{{< embed >}}` points an iframe at it.
+- **Cards**: `card.html` uses `thumbnail:` from front matter, else any `cover.*` file in the
+  post folder (resized to 800x450 WebP), else a generated tile coloured by the first tag.
+- **Contents rail**: `toc-rail.js` reads the `h2`/`h3` headings of the rendered post, so it does
+  not depend on the theme's templates. It is loaded on posts under `blog/` unless the post sets
+  `toc: false`, and shows when a post has at least `tocMinHeadings` headings.
+- **Search**: after Hugo builds `public/`, Pagefind indexes post pages (`pagefind.yml` limits it
+  to `blog/**/index.html`; listing pages opt out with `data-pagefind-ignore`). Tags and
+  categories become search filters via `<meta data-pagefind-filter>` tags in `head-extras.html`.
+  The index is static files under `/pagefind/`; there is no server.
+- **Favicon**: `static/favicon.svg` plus PNG/ICO fallbacks, referenced by PaperMod's
+  `params.assets` and by `head-extras.html`.
+
+## Local development
+
+Requirements: [Hugo extended](https://gohugo.io/installation/) **v0.146 or newer** (CI uses
+v0.167.0), and git.
+
+```bash
+# First clone: fetch the theme submodule too
+git clone --recurse-submodules https://github.com/gudurumanoj/gudurumanoj.github.io.git
+# (or, in an existing clone)
+git submodule update --init --recursive
+
+# Live preview with drafts at http://localhost:1313 (reloads on save)
+hugo server -D
+```
+
+Search needs the Pagefind index, which `hugo server` does not build. To try search locally,
+build the index once into `static/` (git-ignored), then run the server:
+
+```bash
+hugo -D
+npx -y pagefind --site public --output-path static/pagefind
+# without Node: uv run --with 'pagefind[extended]' python -m pagefind --site public --output-path static/pagefind
+hugo server -D
+```
+
+Re-run the middle step whenever you want search to pick up new posts.
+
+## Deployment
+
+`.github/workflows/hugo.yml` runs on every push to `main` or `master`:
+
+1. Installs Hugo extended (version pinned in `HUGO_VERSION`).
+2. Checks out the repo **with submodules** (the theme).
+3. Runs `hugo --gc --minify` to build `public/`.
+4. Runs `npx pagefind --site public` to build the search index.
+5. Uploads `public/` and deploys it to GitHub Pages.
+
+### One-time setup
+
+1. Create a **public** repository named exactly `gudurumanoj.github.io` on GitHub.
+2. Push this repo to it:
+   ```bash
+   git remote add origin https://github.com/gudurumanoj/gudurumanoj.github.io.git
+   git push -u origin master
+   ```
+3. In the repository, go to **Settings > Pages > Build and deployment** and set **Source** to
+   **GitHub Actions**.
+4. Watch the run under the **Actions** tab. The site will be at https://gudurumanoj.github.io/.
+
+Drafts (`draft: true`) are never published; only `hugo server -D` shows them.
+
+## Swapping the theme
+
+The goal is that switching themes is a one-line change in `config/_default/hugo.toml`.
+
+1. Add the new theme as a submodule:
+   ```bash
+   git submodule add https://github.com/<owner>/<theme>.git themes/<theme>
+   ```
+2. Set `theme = "<theme>"` in `config/_default/hugo.toml`.
+3. Run `hugo server -D` and check the list below.
+
+Shims for the head hooks of **PaperMod, Blowfish, Congo, Ananke and Stack** already exist in
+`layouts/_partials/`. For another theme, find the partial its `<head>` template includes for
+custom code (often named `extend_head`, `custom-head` or similar) and add a one-line file with
+that name:
+
+```go-html-template
+{{- partial "manlog/head-extras.html" . -}}
+```
+
+Things to check after a swap:
+
+- Landing page, `/blog/` grid, a category page, a tag page and `/search/` render inside the new
+  theme's header and footer.
+- A post shows math, Mermaid diagrams, the embedded demo, and the contents rail (open the
+  feature-tour post).
+- The nav bar uses `menus.toml`. Most themes read `[[main]]`; a few use a different menu name.
+- Theme-specific settings live at the bottom of `params.toml`. Unknown keys are ignored, so
+  settings for several themes can sit side by side. The `/archives/` page uses PaperMod's
+  `archives` layout; other themes may need their own archive page or can drop the menu entry.
+- Some themes add their own page header (Ananke shows a big title banner) above our grid pages.
+  Adjust with that theme's options or a small CSS override in `assets/css/manlog.css`.
+
+A custom theme (for example one styled after a lab blog you like) is just another folder under
+`themes/` with `baseof.html`, `single.html`, header and footer partials. Our layer keeps working
+as long as it defines a `main` block and includes the head shim.
+
+## Updating things
+
+- **Theme**: `git submodule update --remote themes/PaperMod`, then preview.
+- **Hugo**: bump `HUGO_VERSION` in the workflow. If Hugo's bundled KaTeX changed (see its release
+  notes), update `katexCSS` in `params.toml` to the matching version.
+- **Mermaid**: `mermaidJS` in `params.toml` (currently the latest 11.x from jsDelivr).

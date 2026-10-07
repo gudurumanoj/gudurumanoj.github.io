@@ -1,0 +1,27 @@
+# Top navigation bar. Lower weight = further left.
+# To add an item, copy a block and change name/url/weight (see WRITING.md).
+
+[[main]]
+  name = "Blog"
+  url = "/blog/"
+  weight = 10
+
+[[main]]
+  name = "Tags"
+  url = "/tags/"
+  weight = 20
+
+[[main]]
+  name = "Archive"
+  url = "/archives/"
+  weight = 30
+
+[[main]]
+  name = "Search"
+  url = "/search/"
+  weight = 40
+
+[[main]]
+  name = "About"
+  url = "/about/"
+  weight = 50

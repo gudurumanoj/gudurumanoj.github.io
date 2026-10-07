@@ -1,0 +1,18 @@
+{{- /*
+  Embed an interactive HTML file (e.g. a Claude artifact saved as demo.html) or any URL.
+  Usage: {{< embed src="demo.html" height="480" caption="Drag the slider" >}}
+*/ -}}
+{{- $src := .Get "src" | default (.Get 0) }}
+{{- if not $src }}{{ errorf "embed shortcode needs src= in %s" .Position }}{{ end }}
+{{- $url := $src }}
+{{- with .Page.Resources.Get $src }}{{ $url = .RelPermalink }}{{ end }}
+{{- $height := .Get "height" | default "480" }}
+{{- $title := .Get "title" | default (.Get "caption") | default "Embedded demo" }}
+<figure class="ml-embed">
+  <iframe src="{{ $url }}" title="{{ $title }}" loading="lazy" allowfullscreen
+    style="height: {{ $height }}px"></iframe>
+  <figcaption>
+    {{- with .Get "caption" }}<span>{{ . | markdownify }}</span>{{ end }}
+    <a href="{{ $url }}" target="_blank" rel="noopener">Open full screen &#8599;</a>
+  </figcaption>
+</figure>

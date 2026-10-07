@@ -1,0 +1,10 @@
+{{- $opts := dict "output" "htmlAndMathml" "displayMode" (eq .Type "block") "throwOnError" true }}
+{{- with try (transform.ToMath .Inner $opts) }}
+  {{- with .Err }}
+    {{- warnf "KaTeX could not render %q in %s: %s" $.Inner $.Position . }}
+    <code class="ml-math-error" title="KaTeX error">{{ $.Inner }}</code>
+  {{- else }}
+    {{- .Value }}
+    {{- $.Page.Store.Set "hasMath" true }}
+  {{- end }}
+{{- end -}}

@@ -1,0 +1,54 @@
+{{- /*
+  Everything man'log adds to <head>. Each theme includes this through its own
+  "extend head" hook (for PaperMod: layouts/_partials/extend_head.html).
+*/ -}}
+{{- $cfg := site.Params.manlog }}
+
+{{- $css := resources.Get "css/manlog.css" | minify | fingerprint }}
+<link rel="stylesheet" href="{{ $css.RelPermalink }}" integrity="{{ $css.Data.Integrity }}" crossorigin="anonymous">
+<link rel="icon" type="image/svg+xml" href="{{ "favicon.svg" | relURL }}">
+<link rel="manifest" href="{{ "site.webmanifest" | relURL }}">
+
+{{- /* Render the content first so the math/mermaid hooks have flagged the page. */}}
+{{- if .IsPage }}{{ $noop := .WordCount }}{{ end }}
+
+{{- if .Store.Get "hasMath" }}
+<link rel="stylesheet" href="{{ $cfg.katexCSS }}" crossorigin="anonymous">
+{{- end }}
+
+{{- if .Store.Get "hasMermaid" }}
+{{- $mermaid := resources.Get "js/mermaid-init.js" | resources.ExecuteAsTemplate "js/mermaid-init.js" . | minify | fingerprint }}
+<script type="module" src="{{ $mermaid.RelPermalink }}"></script>
+{{- end }}
+
+{{- if and .IsPage (ne (.Param "toc") false) (or (eq .Type "blog") (eq (.Param "toc") true)) }}
+{{- $toc := resources.Get "js/toc-rail.js" | minify | fingerprint }}
+<script defer src="{{ $toc.RelPermalink }}" data-min-headings="{{ $cfg.tocMinHeadings | default 3 }}"></script>
+{{- end }}
+
+{{- /* Search: Pagefind filters for posts, and the site-wide Ctrl/Cmd+K dialog. */}}
+{{- if and .IsPage (eq .Type "blog") }}
+{{- range .GetTerms "tags" }}
+<meta data-pagefind-filter="tag[content]" content="{{ .LinkTitle }}">
+{{- end }}
+{{- with .Parent }}{{ if ne .Path "/blog" }}
+<meta data-pagefind-filter="category[content]" content="{{ .Title }}">
+{{- end }}{{ end }}
+{{- end }}
+{{- if or $cfg.searchModal (eq .Layout "pagefind") }}
+<link rel="stylesheet" href="{{ "pagefind/pagefind-component-ui.css" | relURL }}">
+<script type="module" src="{{ "pagefind/pagefind-component-ui.js" | relURL }}"></script>
+{{- end }}
+{{- if and $cfg.searchModal (ne .Layout "pagefind") }}
+<script type="module">
+  const modal = document.createElement("pagefind-modal");
+  modal.setAttribute("reset-on-close", "");
+  document.body.append(modal);
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k" && !e.target.closest("input, textarea, [contenteditable]")) {
+      e.preventDefault();
+      customElements.whenDefined("pagefind-modal").then(() => (modal.isOpen ? modal.close() : modal.open()));
+    }
+  });
+</script>
+{{- end }}

@@ -1,0 +1,48 @@
+{{- /*
+  One post card: cover (or a generated tile), category, tags, title, date, summary.
+  Cover lookup: front matter `thumbnail: file.png`, else any `cover.*` file in the post folder.
+*/ -}}
+{{- $img := "" }}
+{{- with .Params.thumbnail }}{{ $img = $.Resources.Get . }}{{ end }}
+{{- if not $img }}{{ $img = .Resources.GetMatch "cover.*" }}{{ end }}
+
+{{- $tags := .GetTerms "tags" }}
+{{- $seed := .Title }}
+{{- with $tags }}{{ $seed = (index . 0).LinkTitle }}{{ end }}
+{{- $hue := mod (hash.FNV32a $seed) 360 }}
+
+{{- $category := "" }}
+{{- with .Parent }}{{ if ne .Path "/blog" }}{{ $category = .Title }}{{ end }}{{ end }}
+
+<article class="ml-card">
+  <a class="ml-card-media" href="{{ .RelPermalink }}" tabindex="-1" aria-hidden="true">
+    {{- if $img }}
+      {{- $src := $img }}
+      {{- if and (eq $img.ResourceType "image") (not (in (slice "svg" "gif") $img.MediaType.SubType)) }}
+        {{- $src = $img.Fill "800x450 Smart webp q80" }}
+      {{- end }}
+      <img src="{{ $src.RelPermalink }}" alt="" loading="lazy">
+    {{- else }}
+      <div class="ml-card-tile" style="--ml-hue: {{ $hue }}">
+        <span>{{ .Title }}</span>
+      </div>
+    {{- end }}
+  </a>
+  <div class="ml-card-body">
+    {{- if or $category $tags }}
+    <div class="ml-card-meta">
+      {{- with $category }}<span class="ml-card-category">{{ . }}</span>{{ end }}
+      {{- range $tags }}<a class="ml-chip" href="{{ .RelPermalink }}">{{ .LinkTitle }}</a>{{ end }}
+    </div>
+    {{- end }}
+    <h3 class="ml-card-title">
+      <a href="{{ .RelPermalink }}">{{ .Title }}</a>
+      {{- if .Draft }}<span class="ml-draft">draft</span>{{ end }}
+    </h3>
+    <div class="ml-card-date">
+      <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "2006-01-02" }}</time>
+      <span>&middot; {{ .ReadingTime }} min read</span>
+    </div>
+    <p class="ml-card-summary">{{ .Summary | plainify | htmlUnescape | truncate 200 }}</p>
+  </div>
+</article>
