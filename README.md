@@ -94,7 +94,11 @@ flowchart LR
    footer and fonts around them. Colours come from the theme's CSS variables when present, with
    fallbacks.
 3. **The theme** (`themes/PaperMod`) controls the look: header, nav bar, footer, typography,
-   light/dark toggle, and the single-post page.
+   and the single-post page. The site is light-only: `defaultTheme = "light"` and
+   `disableThemeToggle = true` in `params.toml`. Colours follow posttrainbench.com (warm cream
+   with a terracotta accent). PaperMod's colours are overridden in
+   `assets/css/extended/palette.css`, and the accent lives in `--ml-accent` in
+   `assets/css/manlog.css`. To bring dark mode back, set `disableThemeToggle = false`.
 
 ### How each feature works
 
@@ -106,8 +110,8 @@ flowchart LR
   bundled with Hugo.
 - **Mermaid**: `render-codeblock-mermaid.html` turns ` ```mermaid ` blocks into
   `<pre class="mermaid">` and flags the page; `head-extras.html` then loads
-  `mermaid-init.js` (Mermaid from a CDN) only on flagged pages. Diagrams re-render when
-  the light/dark toggle flips.
+  `mermaid-init.js` (Mermaid from a CDN) only on flagged pages. Light diagrams use the
+  site palette, and diagrams re-render if the theme ever switches to dark.
 - **Embeds**: only Markdown counts as content (`[contentTypes]` in `hugo.toml`), so an HTML
   file in a post folder is published as a plain file. `{{< embed >}}` points an iframe at it.
 - **Cards**: `card.html` uses `thumbnail:` from front matter, else any `cover.*` file in the
@@ -119,8 +123,10 @@ flowchart LR
   to `blog/**/index.html`; listing pages opt out with `data-pagefind-ignore`). Tags and
   categories become search filters via `<meta data-pagefind-filter>` tags in `head-extras.html`.
   The index is static files under `/pagefind/`; there is no server.
-- **Favicon**: `static/favicon.svg` plus PNG/ICO fallbacks, referenced by PaperMod's
-  `params.assets` and by `head-extras.html`.
+- **Favicon**: the wood-log emoji from [Twemoji](https://github.com/jdecked/twemoji)
+  (CC-BY 4.0). `static/favicon.svg` plus PNG/ICO fallbacks, referenced by PaperMod's
+  `params.assets` and by `head-extras.html`; the header logo uses the same SVG. To change it,
+  replace those files (any square image works).
 
 ## Local development
 

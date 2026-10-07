@@ -1,3 +1,39 @@
+# TOML rule: plain `key = value` lines must come BEFORE the first [section] header.
+# Anything written after a header belongs to that section.
+
+# ---------------------------------------------------------------------------
+# Generic Hugo params most themes understand.
+# ---------------------------------------------------------------------------
+description = "man'log: Manoj Guduru's notes on ML, math, and competitive programming."
+mainSections = ["blog"]
+env = "production"
+
+# ---------------------------------------------------------------------------
+# PaperMod-specific params. Other themes ignore these keys.
+# ---------------------------------------------------------------------------
+defaultTheme = "light"
+disableThemeToggle = true
+ShowReadingTime = true
+ShowCodeCopyButtons = true
+ShowBreadCrumbs = true
+ShowPostNavLinks = true
+ShowWordCount = false
+ShowToc = false
+hideFooter = false
+
+[assets]
+  favicon = "favicon.ico"
+  favicon16x16 = "favicon-16x16.png"
+  favicon32x32 = "favicon-32x32.png"
+  apple_touch_icon = "apple-touch-icon.png"
+  safari_pinned_tab = "favicon.svg"
+  theme_color = "#f3f0e8"
+
+[label]
+  text = "man'log"
+  icon = "favicon.svg"
+  iconHeight = 24
+
 # ---------------------------------------------------------------------------
 # man'log settings: read by our own templates in layouts/, independent of the theme.
 # ---------------------------------------------------------------------------
@@ -19,7 +55,8 @@
   katexCSS = "https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.css"
   mermaidJS = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs"
 
-  # Icons available: github, x, linkedin, email, scholar, rss, link
+  # Social links on the landing page. Icons available: github, x, linkedin, email, scholar, rss, link
+  # Keep these [[manlog.socials]] blocks at the end of the file.
   [[manlog.socials]]
     name = "GitHub"
     url = "https://github.com/gudurumanoj"
@@ -40,36 +77,3 @@
     name = "RSS"
     url = "/index.xml"
     icon = "rss"
-
-# ---------------------------------------------------------------------------
-# Generic Hugo params most themes understand.
-# ---------------------------------------------------------------------------
-description = "man'log: Manoj Guduru's notes on ML, math, and competitive programming."
-mainSections = ["blog"]
-env = "production"
-
-# ---------------------------------------------------------------------------
-# PaperMod-specific params. Other themes ignore these keys.
-# ---------------------------------------------------------------------------
-defaultTheme = "auto"
-disableThemeToggle = false
-ShowReadingTime = true
-ShowCodeCopyButtons = true
-ShowBreadCrumbs = true
-ShowPostNavLinks = true
-ShowWordCount = false
-ShowToc = false
-hideFooter = false
-
-[assets]
-  favicon = "favicon.ico"
-  favicon16x16 = "favicon-16x16.png"
-  favicon32x32 = "favicon-32x32.png"
-  apple_touch_icon = "apple-touch-icon.png"
-  safari_pinned_tab = "favicon.svg"
-  theme_color = "#1d1e20"
-
-[label]
-  text = "man'log"
-  icon = "favicon.svg"
-  iconHeight = 24

@@ -14,7 +14,30 @@ async function render() {
     n.removeAttribute("data-processed");
     n.textContent = n.dataset.source;
   });
-  mermaid.initialize({ startOnLoad: false, theme: isDark() ? "dark" : "default" });
+  mermaid.initialize(
+    isDark()
+      ? { startOnLoad: false, theme: "dark" }
+      : {
+          startOnLoad: false,
+          theme: "base",
+          themeVariables: {
+            background: "#faf8f3",
+            primaryColor: "#f3f0e8",
+            primaryBorderColor: "#a66b4f",
+            primaryTextColor: "#2d2a23",
+            secondaryColor: "#e8e4d9",
+            tertiaryColor: "#fdfcf8",
+            lineColor: "#6b655a",
+            textColor: "#2d2a23",
+            noteBkgColor: "#f3e6d8",
+            noteBorderColor: "#a66b4f",
+            actorBkg: "#f3f0e8",
+            actorBorder: "#a66b4f",
+            signalColor: "#2d2a23",
+            fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
+          },
+        }
+  );
   await mermaid.run({ nodes });
 }
 

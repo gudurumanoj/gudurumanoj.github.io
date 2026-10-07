@@ -9,7 +9,9 @@
 {{- $tags := .GetTerms "tags" }}
 {{- $seed := .Title }}
 {{- with $tags }}{{ $seed = (index . 0).LinkTitle }}{{ end }}
-{{- $hue := mod (hash.FNV32a $seed) 360 }}
+{{- /* Earthy hues: terracotta, sage, slate, mauve, olive, ochre. */}}
+{{- $hues := slice 20 165 215 320 75 38 }}
+{{- $hue := index $hues (mod (hash.FNV32a $seed) (len $hues)) }}
 
 {{- $category := "" }}
 {{- with .Parent }}{{ if ne .Path "/blog" }}{{ $category = .Title }}{{ end }}{{ end }}

@@ -86,6 +86,11 @@ The tag pages and search filters appear on the next build.
 **Categories vs tags**: the folder is the category (one per post, shown as a chip row on
 `/blog/`); tags are many per post and cut across categories.
 
+A post with several tags shows up on each of those tag pages (`/tags/ml/`, `/tags/math/`, ...)
+and shows all its tags as chips on its card. On `/search/`, the **Tags** filter lists every tag
+with a post count and works without typing a query. Ticking several tags narrows the results
+to posts that have **all** of them; options that would give zero results are hidden.
+
 ## Images, GIFs and video
 
 ```markdown
@@ -167,7 +172,7 @@ flowchart LR
 ````
 
 Any Mermaid diagram type works (flowchart, sequence, class, state, gantt, pie, and more). See the
-[Mermaid docs](https://mermaid.js.org/intro/). Diagrams follow the site's light/dark toggle.
+[Mermaid docs](https://mermaid.js.org/intro/). Diagrams use the site palette (set in `assets/js/mermaid-init.js`).
 
 ## Interactive demos and Claude artifacts
 

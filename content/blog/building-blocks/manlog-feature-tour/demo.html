@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Gradient descent demo</title>
 <style>
-  html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; background: #fafafa; }
+  html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; background: #fdfcf8; accent-color: #a66b4f; }
   canvas { display: block; width: 100%; height: calc(100% - 44px); cursor: crosshair; }
-  .bar { display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 14px; font-size: 14px; color: #333; }
+  .bar { display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 14px; font-size: 14px; color: #2d2a23; }
   input[type=range] { width: 140px; }
 </style>
 </head>
@@ -41,7 +41,7 @@ function contours() {
       const [px, py] = toPx(Math.sqrt(level / A) * Math.cos(a), Math.sqrt(level / B) * Math.sin(a));
       a === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
     }
-    ctx.strokeStyle = `hsl(${220 - k * 12} 60% 60% / 0.5)`;
+    ctx.strokeStyle = `hsl(${140 - k * 9} 22% 58% / 0.55)`;
     ctx.stroke();
   }
 }
@@ -51,8 +51,8 @@ function draw() {
   contours();
   ctx.beginPath();
   path.forEach(([x, y], i) => { const [px, py] = toPx(x, y); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
-  ctx.strokeStyle = "#b4233c"; ctx.lineWidth = 2; ctx.stroke(); ctx.lineWidth = 1;
-  path.forEach(([x, y]) => { const [px, py] = toPx(x, y); ctx.beginPath(); ctx.arc(px, py, 3, 0, 7); ctx.fillStyle = "#b4233c"; ctx.fill(); });
+  ctx.strokeStyle = "#a66b4f"; ctx.lineWidth = 2; ctx.stroke(); ctx.lineWidth = 1;
+  path.forEach(([x, y]) => { const [px, py] = toPx(x, y); ctx.beginPath(); ctx.arc(px, py, 3, 0, 7); ctx.fillStyle = "#a66b4f"; ctx.fill(); });
   stepEl.textContent = `step ${t}   f = ${(A * p[0] ** 2 + B * p[1] ** 2).toFixed(4)}`;
 }
 

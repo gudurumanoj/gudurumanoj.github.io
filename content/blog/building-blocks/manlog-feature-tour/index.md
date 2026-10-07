@@ -119,7 +119,7 @@ sequenceDiagram
   S-->>U: response
 ```
 
-Diagrams follow the light/dark toggle in the header.
+Diagrams are drawn in the site's colours.
 
 ## Interactive demos
 
