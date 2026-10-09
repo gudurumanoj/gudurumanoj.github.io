@@ -1,15 +1,15 @@
 # Writing for man'log
 
-How to add posts and everything that goes in them, organise them with categories and tags,
+How to add posts and everything that goes in them, organise them with tags,
 and change the landing page and nav bar. For how the repo is built, see [README.md](README.md).
 
-The post [A Tour of man'log](content/blog/building-blocks/manlog-feature-tour/index.md) uses
+The post [A Tour of man'log](content/blog/manlog-feature-tour/index.md) uses
 every feature below. Keep it open as a live example.
 
 ## Quick start
 
 ```bash
-hugo new blog/ml/attention-from-scratch/index.md   # creates the post from archetypes/blog.md
+hugo new blog/attention-from-scratch/index.md      # creates the post from archetypes/blog.md
 hugo server -D                                     # preview at http://localhost:1313
 ```
 
@@ -18,26 +18,28 @@ or two.
 
 ## Where posts live
 
-Every post is a folder (a "page bundle") inside a category folder:
+Every post is a folder (a "page bundle") directly inside `content/blog/`. There are no
+category folders: topics come from tags, so a post can belong to as many as it needs and its
+URL never has to change.
 
 ```
 content/blog/
 ├── _index.md                       # the /blog/ page title and description
-├── ml/
-│   ├── _index.md                   # the ML category: title, description, order
-│   └── attention-from-scratch/     # one post = one folder; the folder name is the URL slug
-│       ├── index.md                # the post itself
-│       ├── cover.png               # optional card image (picked up automatically)
-│       ├── fig-attention.png       # images, GIFs, videos, HTML demos used by the post
-│       └── demo.html
-└── math/ ...
+├── attention-from-scratch/         # one post = one folder; the folder name is the URL slug
+│   ├── index.md                    # the post itself
+│   ├── cover.png                   # optional card image (picked up automatically)
+│   ├── fig-attention.png           # images, GIFs, videos, HTML demos used by the post
+│   └── demo.html
+└── python-concurrency/ ...
 ```
 
-URL of that post: `/blog/ml/attention-from-scratch/`.
+URL of that post: `/blog/attention-from-scratch/`.
 
 Rules:
 - The post file must be named `index.md`, inside its own folder.
-- The folder name becomes the URL, so use lowercase words with hyphens.
+- The folder name becomes the URL, so use lowercase words with hyphens. Pick it carefully:
+  renaming it later changes the link (if you must, add the old URL to the post's front matter
+  as `aliases: ["/blog/old-name/"]` so old links redirect).
 - Put the post's files in the same folder and refer to them by file name.
 
 ## Front matter
@@ -78,13 +80,19 @@ Use lowercase, hyphenated tags and reuse existing ones so the filters stay usefu
 | `ml` | Machine learning |
 | `math` | Math |
 | `cp` | Competitive programming |
+| `python`, `code` | Python and general programming |
+| `infra` | Systems, infrastructure, performance |
+| `interview` | Interview preparation |
 | `random-thoughts` | Opinions, musings, half-baked ideas |
+| `meta` | Posts about this site |
 
 Add new tags freely: writing a new tag in a post's front matter is all it takes to create it.
-The tag pages and search filters appear on the next build.
+There is nothing to register. On the next build the tag gets its own page (`/tags/<tag>/`),
+a chip in the tag bar at the top of `/blog/`, and an entry in the search filter.
 
-**Categories vs tags**: the folder is the category (one per post, shown as a chip row on
-`/blog/`); tags are many per post and cut across categories.
+The tag bar on `/blog/` lists tags by how many posts use them (most-used first). It shows the
+top 15, followed by an "All N tags" link to `/tags/` once there are more. Clicking a tag opens
+its page, with the same bar so you can jump between tags.
 
 A post with several tags shows up on each of those tag pages (`/tags/ml/`, `/tags/math/`, ...)
 and shows all its tags as chips on its card. On `/search/`, the **Tags** filter lists every tag
@@ -240,7 +248,7 @@ short of the box edge so the head doesn't overlap the border.
 **Let Claude draw it.** Give Claude a sketch, a screenshot, or a description, plus this template,
 and ask: *"Recreate this diagram as SVG in exactly this format, using only these classes, with
 no blank lines."* Paste the result into the post. The feature-tour post has a full example
-(`content/blog/building-blocks/manlog-feature-tour/index.md`).
+(`content/blog/manlog-feature-tour/index.md`).
 
 ## Interactive demos and Claude artifacts
 
@@ -294,27 +302,6 @@ Tables use standard Markdown pipes. Raw HTML is allowed anywhere.
   bottom left.
 - It appears when a post has at least 3 such headings (`tocMinHeadings` in
   `config/_default/params.toml`), and can be turned off per post with `toc: false`.
-
-## Categories
-
-To add a category, create a folder with an `_index.md`:
-
-```bash
-mkdir -p content/blog/systems
-```
-
-```yaml
-# content/blog/systems/_index.md
----
-title: "Systems"
-description: "Distributed systems, GPUs, and performance."
-weight: 50          # chip order on /blog/ (lower = further left)
----
-```
-
-It appears as a chip on `/blog/` and gets its own page at `/blog/systems/`. Categories can be
-nested (`content/blog/ml/transformers/_index.md`); posts in sub-folders still appear on
-`/blog/` and on every parent category page.
 
 ## The landing page
 
@@ -421,7 +408,7 @@ To remove an item, delete its `[[main]]` block.
 
 ## The sample content
 
-The repo ships with one published post (the feature tour) and three short **drafts**
-(`ml/softmax-numerical-stability`, `cp/prefix-sums`, `thoughts/why-keep-a-log`) that exist to
-fill the grid while previewing. Delete or rewrite them whenever you like; the drafts never
+The repo ships with one published post (the feature tour), the Python concurrency post (a
+draft until you publish it), and three short placeholder **drafts** (`softmax-numerical-stability`,
+`prefix-sums`, `why-keep-a-log`) that exist to fill the grid while previewing. Delete or rewrite them whenever you like; the drafts never
 appear on the live site.

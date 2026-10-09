@@ -7,22 +7,33 @@ to GitHub Pages by GitHub Actions.
 - **This file** explains how the repository is put together: layout, architecture, build,
   deploy, and how to swap the theme.
 - **[WRITING.md](WRITING.md)** is the day-to-day guide: writing posts, adding images, math,
-  diagrams and demos, tags, categories, and nav bar entries.
+  diagrams and demos, tags, and nav bar entries.
+- **Agent skills** in `agent_skills/` give AI coding agents the same knowledge in compact,
+  tool-neutral Markdown. `AGENTS.md` (read automatically by Cursor, Codex and most other coding
+  agents) points to them. Any agent can also be handed a file directly:
+  - `manlog-repo/SKILL.md`: full repo context (architecture, commands, pitfalls, rules) for
+    changing the site itself.
+  - `manlog-write-post/SKILL.md`: everything needed to write a post, so the agent doesn't
+    have to read the code.
+
+  Update them when the structure or conventions change.
 
 ## Site map
 
 | URL | What it shows | Rendered by |
 |-----|---------------|-------------|
 | `/` | Personal landing page: name, photo/monogram, social links, intro text | `layouts/home.html` |
-| `/blog/` | All posts as a paginated card grid with category chips and a search button | `layouts/blog/list.html` |
-| `/blog/<category>/` | Same grid, filtered to one folder | `layouts/blog/list.html` |
-| `/blog/<category>/<post>/` | A post | the theme's single-page template |
-| `/tags/`, `/tags/<tag>/` | Tag list; card grid per tag | theme (`/tags/`), `layouts/term.html` |
+| `/blog/` | All posts as a paginated card grid, a tag bar (most-used tags) and a search button | `layouts/blog/list.html` |
+| `/blog/<post>/` | A post | the theme's single-page template |
+| `/tags/`, `/tags/<tag>/` | Tag list; card grid per tag with the same tag bar | theme (`/tags/`), `layouts/term.html` |
 | `/archives/` | Every post by year | theme (PaperMod `archives` layout) |
-| `/search/` | Full search page with tag/category filters | `layouts/pagefind.html` |
+| `/search/` | Full search page with a tag filter | `layouts/pagefind.html` |
 
 Only **Blog** is in the nav bar. Tags, the archive and search are reached from the blog page
-(tag chips on cards, the search button, Ctrl/Cmd+K) or by URL.
+(the tag bar, tag chips on cards, the search button, Ctrl/Cmd+K) or by URL.
+
+Posts are flat: there are no category folders. Topics come only from tags, which are
+many-per-post and appear in the UI automatically.
 
 ## Repository layout
 
@@ -37,11 +48,10 @@ Only **Blog** is in the nav bar. Tags, the archive and search are reached from t
 │   ├── search.md, archives.md
 │   └── blog/
 │       ├── _index.md            # /blog/ title + description
-│       ├── <category>/_index.md # one folder per category (ml, math, cp, ...)
-│       └── <category>/<post>/index.md  # one folder per post ("page bundle")
+│       └── <post>/index.md      # one folder per post ("page bundle"), plus its images/demos
 ├── layouts/             # man'log feature layer (overrides/extends the theme)
 │   ├── home.html                  # landing page
-│   ├── blog/list.html             # card grid for /blog/ and every category
+│   ├── blog/list.html             # card grid for /blog/
 │   ├── term.html                  # card grid for /tags/<tag>/
 │   ├── pagefind.html              # search page
 │   ├── _markup/
@@ -53,7 +63,7 @@ Only **Blog** is in the nav bar. Tags, the archive and search are reached from t
 │   └── _partials/
 │       ├── manlog/head-extras.html  # the one place our CSS/JS gets added to <head>
 │       ├── manlog/card.html         # one post card
-│       ├── manlog/listing.html      # shared grid page (header, chips, grid, pagination)
+│       ├── manlog/listing.html      # shared grid page (header, tag bar, grid, pagination)
 │       ├── manlog/pagination.html
 │       ├── manlog/icon.html         # social icons
 │       ├── extend_head.html         # theme hook shims: each is one line that
@@ -116,14 +126,16 @@ flowchart LR
   site palette, and diagrams re-render if the theme ever switches to dark.
 - **Embeds**: only Markdown counts as content (`[contentTypes]` in `hugo.toml`), so an HTML
   file in a post folder is published as a plain file. `{{< embed >}}` points an iframe at it.
+- **Tag bar**: `listing.html` builds the chip row on `/blog/` and tag pages from
+  `site.Taxonomies.tags.ByCount`, so new tags appear without any configuration.
 - **Cards**: `card.html` uses `thumbnail:` from front matter, else any `cover.*` file in the
   post folder (resized to 800x450 WebP), else a generated tile coloured by the first tag.
 - **Contents rail**: `toc-rail.js` reads the `h2`/`h3` headings of the rendered post, so it does
   not depend on the theme's templates. It is loaded on posts under `blog/` unless the post sets
   `toc: false`, and shows when a post has at least `tocMinHeadings` headings.
 - **Search**: after Hugo builds `public/`, Pagefind indexes post pages (`pagefind.yml` limits it
-  to `blog/**/index.html`; listing pages opt out with `data-pagefind-ignore`). Tags and
-  categories become search filters via `<meta data-pagefind-filter>` tags in `head-extras.html`.
+  to `blog/**/index.html`; listing pages opt out with `data-pagefind-ignore`). Tags become
+  the search filter via `<meta data-pagefind-filter>` tags in `head-extras.html`.
   The index is static files under `/pagefind/`; there is no server.
 - **Favicon**: the wood-log emoji from [Twemoji](https://github.com/jdecked/twemoji)
   (CC-BY 4.0). `static/favicon.svg` plus PNG/ICO fallbacks, referenced by PaperMod's
@@ -247,7 +259,7 @@ that name:
 
 Things to check after a swap:
 
-- Landing page, `/blog/` grid, a category page, a tag page and `/search/` render inside the new
+- Landing page, `/blog/` grid, a tag page and `/search/` render inside the new
   theme's header and footer.
 - A post shows math, Mermaid diagrams, the embedded demo, and the contents rail (open the
   feature-tour post).

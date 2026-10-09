@@ -131,8 +131,8 @@
 .ml-back { font-size: 14px; color: var(--ml-muted); }
 .ml-back:hover { color: var(--ml-accent); }
 
-.ml-categories { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
-.ml-category {
+.ml-tagbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 18px; }
+.ml-tagbar-item {
   font-size: 14px;
   padding: 5px 12px;
   border: 1px solid var(--ml-border);
@@ -141,10 +141,12 @@
   color: var(--ml-text);
   transition: border-color 0.15s;
 }
-.ml-category span { color: var(--ml-muted); font-size: 12px; margin-left: 2px; }
-.ml-category:hover { border-color: var(--ml-muted); }
-.ml-category.active { background: var(--ml-accent); color: #faf8f3; border-color: var(--ml-accent); }
-.ml-category.active span { color: inherit; opacity: 0.7; }
+.ml-tagbar-item span { color: var(--ml-muted); font-size: 12px; margin-left: 2px; }
+.ml-tagbar-item:hover { border-color: var(--ml-muted); }
+.ml-tagbar-item.active { background: var(--ml-accent); color: #faf8f3; border-color: var(--ml-accent); }
+.ml-tagbar-item.active span { color: inherit; opacity: 0.7; }
+.ml-tagbar-more { font-size: 14px; color: var(--ml-muted); margin-left: 4px; }
+.ml-tagbar-more:hover { color: var(--ml-accent-text); }
 
 .ml-empty { color: var(--ml-muted); }
 
@@ -206,13 +208,6 @@
 .ml-card-body { display: flex; flex-direction: column; gap: 10px; padding: 18px 20px 20px; flex: 1; }
 
 .ml-card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.ml-card-category {
-  font-size: 12px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ml-muted);
-  margin-right: 4px;
-}
 .ml-chip {
   position: relative;
   z-index: 1;
@@ -293,16 +288,30 @@
   background: #fff;
 }
 .ml-embed figcaption,
-.ml-video figcaption {
+.ml-video figcaption,
+.md-content .ml-embed > figcaption,
+.md-content .ml-video > figcaption {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 8px;
+  margin: 8px 0 0;
   font-size: 14px;
+  font-weight: normal;
   color: var(--ml-muted);
 }
 .ml-embed figcaption a { margin-left: auto; white-space: nowrap; box-shadow: none; }
 .ml-video video { display: block; width: 100%; border-radius: var(--ml-radius); }
+
+.post-content details {
+  margin: 10px 0;
+  padding: 10px 16px;
+  border: 1px solid var(--ml-border);
+  border-radius: var(--ml-radius);
+  background: var(--ml-card-bg);
+}
+.post-content details > summary { cursor: pointer; font-weight: 500; }
+.post-content details[open] > summary { margin-bottom: 10px; }
+.post-content details > :last-child { margin-bottom: 0; }
 
 .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
 .ml-math-error { color: #d32f2f; }

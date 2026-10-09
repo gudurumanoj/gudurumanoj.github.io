@@ -1,15 +1,15 @@
 {{- /*
-  Shared card-grid page for /blog/, its category folders, and /tags/<tag>/.
+  Shared card-grid page for /blog/ and /tags/<tag>/.
   Context: dict "page" <page> "pages" <collection of posts>
+  The tag bar lists the most-used tags; new tags appear automatically.
 */ -}}
 {{- $page := .page }}
 {{- $blog := site.GetPage "/blog" }}
+{{- $maxTags := 15 }}
 <div class="ml-listing" data-pagefind-ignore="all">
   <header class="ml-listing-head">
-    {{- if and (eq $page.Kind "section") (ne $page.Path "/blog") }}
-    <a class="ml-back" href="{{ $page.Parent.RelPermalink }}">&larr; {{ $page.Parent.Title }}</a>
-    {{- else if eq $page.Kind "term" }}
-    <a class="ml-back" href="{{ $page.Parent.RelPermalink }}">&larr; All tags</a>
+    {{- if eq $page.Kind "term" }}
+    <a class="ml-back" href="{{ $blog.RelPermalink }}">&larr; All posts</a>
     {{- end }}
     <div class="ml-title-row">
       <h1>{{ if eq $page.Kind "term" }}#{{ end }}{{ $page.Title }}</h1>
@@ -21,18 +21,16 @@
     {{- with $page.Description }}<p class="ml-listing-desc">{{ . | markdownify }}</p>{{ end }}
     {{- with $page.Content }}<div class="ml-listing-desc md-content">{{ . }}</div>{{ end }}
 
-    {{- $sections := cond (eq $page.Kind "section") $page.Sections $blog.Sections }}
-    {{- if not $sections }}{{ $sections = $blog.Sections }}{{ end }}
-    {{- with $sections }}
-    <nav class="ml-categories" aria-label="Categories">
-      {{- if eq $page.Path "/blog" }}
-      <a class="ml-category active" href="{{ $blog.RelPermalink }}">All <span>{{ len $blog.RegularPagesRecursive }}</span></a>
-      {{- else if eq $page.Kind "term" }}
-      <a class="ml-category" href="{{ $blog.RelPermalink }}">All <span>{{ len $blog.RegularPagesRecursive }}</span></a>
+    {{- with site.Taxonomies.tags.ByCount }}
+    <nav class="ml-tagbar" aria-label="Filter by tag">
+      <a class="ml-tagbar-item{{ if eq $page.Path "/blog" }} active{{ end }}" href="{{ $blog.RelPermalink }}">
+        {{- "All" }} <span>{{ len $blog.RegularPagesRecursive }}</span></a>
+      {{- range first $maxTags . }}
+      <a class="ml-tagbar-item{{ if eq .Page.Path $page.Path }} active{{ end }}" href="{{ .Page.RelPermalink }}">
+        {{- .Page.LinkTitle }} <span>{{ .Count }}</span></a>
       {{- end }}
-      {{- range . }}
-      <a class="ml-category{{ if eq .Path $page.Path }} active{{ end }}" href="{{ .RelPermalink }}">
-        {{- .Title }} <span>{{ len .RegularPagesRecursive }}</span></a>
+      {{- if gt (len .) $maxTags }}
+      <a class="ml-tagbar-more" href="{{ "tags/" | relURL }}">All {{ len . }} tags &rarr;</a>
       {{- end }}
     </nav>
     {{- end }}

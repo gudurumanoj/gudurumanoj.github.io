@@ -1,5 +1,5 @@
 {{- /*
-  One post card: cover (or a generated tile), category, tags, title, date, summary.
+  One post card: cover (or a generated tile), tags, title, date, summary.
   Cover lookup: front matter `thumbnail: file.png`, else any `cover.*` file in the post folder.
 */ -}}
 {{- $img := "" }}
@@ -12,9 +12,6 @@
 {{- /* Earthy hues: terracotta, sage, slate, mauve, olive, ochre. */}}
 {{- $hues := slice 20 165 215 320 75 38 }}
 {{- $hue := index $hues (mod (hash.FNV32a $seed) (len $hues)) }}
-
-{{- $category := "" }}
-{{- with .Parent }}{{ if ne .Path "/blog" }}{{ $category = .Title }}{{ end }}{{ end }}
 
 <article class="ml-card">
   <a class="ml-card-media" href="{{ .RelPermalink }}" tabindex="-1" aria-hidden="true">
@@ -31,10 +28,9 @@
     {{- end }}
   </a>
   <div class="ml-card-body">
-    {{- if or $category $tags }}
+    {{- with $tags }}
     <div class="ml-card-meta">
-      {{- with $category }}<span class="ml-card-category">{{ . }}</span>{{ end }}
-      {{- range $tags }}<a class="ml-chip" href="{{ .RelPermalink }}">{{ .LinkTitle }}</a>{{ end }}
+      {{- range . }}<a class="ml-chip" href="{{ .RelPermalink }}">{{ .LinkTitle }}</a>{{ end }}
     </div>
     {{- end }}
     <h3 class="ml-card-title">

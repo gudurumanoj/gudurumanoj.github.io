@@ -26,14 +26,11 @@
 <script defer src="{{ $toc.RelPermalink }}" data-min-headings="{{ $cfg.tocMinHeadings | default 3 }}"></script>
 {{- end }}
 
-{{- /* Search: Pagefind filters for posts, and the site-wide Ctrl/Cmd+K dialog. */}}
+{{- /* Search: Pagefind tag filter for posts, and the site-wide Ctrl/Cmd+K dialog. */}}
 {{- if and .IsPage (eq .Type "blog") }}
 {{- range .GetTerms "tags" }}
 <meta data-pagefind-filter="tag[content]" content="{{ .LinkTitle }}">
 {{- end }}
-{{- with .Parent }}{{ if ne .Path "/blog" }}
-<meta data-pagefind-filter="category[content]" content="{{ .Title }}">
-{{- end }}{{ end }}
 {{- end }}
 {{- if or $cfg.searchModal (eq .Layout "pagefind") }}
 <link rel="stylesheet" href="{{ "pagefind/pagefind-component-ui.css" | relURL }}">

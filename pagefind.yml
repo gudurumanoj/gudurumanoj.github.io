@@ -1,5 +1,5 @@
 # Search index settings, read by `pagefind --site public`.
-# Only posts are indexed; listing pages (blog/, categories, tags) opt out with data-pagefind-ignore.
+# Only posts are indexed; listing pages (blog/, tags) opt out with data-pagefind-ignore.
 site: public
 glob: "blog/**/index.html"
 exclude_selectors:

@@ -4,10 +4,11 @@ date: 2026-10-07T09:00:00+05:30
 draft: false
 tags: ["building-block", "meta"]
 summary: "A reference post that exercises every feature of this blog: images, GIFs, code, LaTeX math, Mermaid diagrams, embedded interactive demos, and the contents rail on the right."
+aliases: ["/blog/building-blocks/manlog-feature-tour/"]
 ---
 
 This post is both a demo and a cheat sheet. Open
-[its source](https://github.com/gudurumanoj/gudurumanoj.github.io/blob/master/content/blog/building-blocks/manlog-feature-tour/index.md)
+[its source](https://github.com/gudurumanoj/gudurumanoj.github.io/blob/master/content/blog/manlog-feature-tour/index.md)
 side by side with the rendered page to see how each piece is written. Hover over the
 ticks on the right edge of the screen to jump between sections.
 
