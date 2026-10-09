@@ -21,6 +21,11 @@
 <script type="module" src="{{ $mermaid.RelPermalink }}"></script>
 {{- end }}
 
+{{- if .Store.Get "hasCode" }}
+{{- $code := resources.Get "js/code-blocks.js" | minify | fingerprint }}
+<script defer src="{{ $code.RelPermalink }}"></script>
+{{- end }}
+
 {{- if and .IsPage (ne (.Param "toc") false) (or (eq .Type "blog") (eq (.Param "toc") true)) }}
 {{- $toc := resources.Get "js/toc-rail.js" | minify | fingerprint }}
 <script defer src="{{ $toc.RelPermalink }}" data-min-headings="{{ $cfg.tocMinHeadings | default 3 }}"></script>

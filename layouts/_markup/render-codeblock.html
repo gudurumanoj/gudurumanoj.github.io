@@ -1,0 +1,26 @@
+{{- /*
+  Every fenced code block (mermaid has its own hook) becomes a collapsible panel: a header with
+  the language or a title, the line count, "show all" and "copy", over a height-capped body that
+  scrolls on its own. Buttons are wired up by assets/js/code-blocks.js.
+  Fence attributes: ```python {title="mini_loop.py"} replaces the label;
+                    ```text {collapsed=true} starts closed.
+*/ -}}
+{{- $result := transform.HighlightCodeBlock . }}
+{{- $lang := .Type | default "text" }}
+{{- $title := .Attributes.title }}
+{{- $lines := len (split (strings.TrimRight "\n" .Inner) "\n") }}
+{{- $collapsed := eq (printf "%v" .Attributes.collapsed) "true" }}
+{{- .Page.Store.Set "hasCode" true }}
+<details class="ml-code"{{ if not $collapsed }} open{{ end }}>
+  <summary class="ml-code-head">
+    <span class="ml-code-chevron" aria-hidden="true"></span>
+    <span class="ml-code-label">{{ $title | default $lang }}</span>
+    {{- if and $title (ne $lang "text") }}<span class="ml-code-meta">{{ $lang }}</span>{{ end }}
+    <span class="ml-code-meta">{{ $lines }} {{ cond (eq $lines 1) "line" "lines" }}</span>
+    <span class="ml-code-actions">
+      <button type="button" class="ml-code-btn" data-ml-expand hidden>+ show all</button>
+      <button type="button" class="ml-code-btn" data-ml-copy hidden>copy</button>
+    </span>
+  </summary>
+  <div class="ml-code-body">{{ $result.Wrapped }}</div>
+</details>

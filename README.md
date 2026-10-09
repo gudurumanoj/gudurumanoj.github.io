@@ -56,6 +56,7 @@ many-per-post and appear in the UI automatically.
 │   ├── pagefind.html              # search page
 │   ├── _markup/
 │   │   ├── render-passthrough.html        # $...$ / $$...$$ -> KaTeX HTML at build time
+│   │   ├── render-codeblock.html          # every other ``` block -> collapsible code panel
 │   │   └── render-codeblock-mermaid.html  # ```mermaid blocks -> diagrams
 │   ├── _shortcodes/
 │   │   ├── embed.html             # {{< embed >}} iframe for HTML demos / Claude artifacts
@@ -74,6 +75,7 @@ many-per-post and appear in the UI automatically.
 │   ├── css/manlog.css     # styles for cards, landing, TOC rail, embeds, search
 │   └── js/
 │       ├── toc-rail.js    # right-side contents rail on posts
+│       ├── code-blocks.js # copy / show-all buttons on code panels
 │       └── mermaid-init.js
 ├── archetypes/blog.md     # front matter template used by `hugo new blog/...`
 ├── static/                # copied as-is: favicons, webmanifest, (optional) avatar
@@ -120,6 +122,11 @@ flowchart LR
   readers download only the KaTeX stylesheet. The stylesheet is added only to pages that
   contain math, and its version (`katexCSS` in `params.toml`) must match the KaTeX version
   bundled with Hugo.
+- **Code panels**: `render-codeblock.html` wraps every fenced block (Hugo's highlighter output)
+  in a `<details class="ml-code">` panel with a header and a height-capped, scrolling body. Fence
+  attributes `title` and `collapsed=true` change the label and initial state. It flags the page
+  so `head-extras.html` loads `code-blocks.js` (copy and "show all" buttons). PaperMod's own copy
+  buttons are turned off (`ShowCodeCopyButtons = false`).
 - **Mermaid**: `render-codeblock-mermaid.html` turns ` ```mermaid ` blocks into
   `<pre class="mermaid">` and flags the page; `head-extras.html` then loads
   `mermaid-init.js` (Mermaid from a CDN) only on flagged pages. Light diagrams use the

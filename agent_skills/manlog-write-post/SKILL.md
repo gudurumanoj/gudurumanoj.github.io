@@ -62,7 +62,10 @@ otherwise a coloured tile with the title is generated. Don't create one unless a
 **Video** (prefer MP4 over long GIFs):
 `{{< video src="clip.mp4" caption="..." >}}` (loops silently) or `{{< video src="talk.mp4" controls="true" >}}`
 
-**Code**: fenced blocks with a language (` ```python `, ` ```bash `); copy button is automatic.
+**Code**: fenced blocks with a language (` ```python `, ` ```bash `, ` ```text ` for output). Each
+becomes a collapsible, height-capped panel with copy / show all automatically. Optional:
+` ```python {title="bench.py"} ` (header label, e.g. a file name or "Output") and
+` ```text {collapsed=true} ` (starts closed). Give long scripts and their outputs a `title`.
 
 **Math** (KaTeX at build time): inline `$x^2$` or `\(x^2\)`; display `$$ ... $$` or `\[ ... \]`
 on their own lines; `aligned`, `cases`, `pmatrix`, `\mathbb` etc. work. Literal dollar: `\$5`.

@@ -9,6 +9,7 @@ exclude_selectors:
   - ".breadcrumbs"
   - ".paginav"
   - ".copy-code"
+  - ".ml-code-head"
   - "pre.mermaid"
   - ".katex"
   - ".anchor"

@@ -127,7 +127,31 @@ shows a coloured tile with the title.
 
 ## Code and commands
 
-Use fenced code blocks with a language for syntax highlighting. A copy button appears on hover.
+Use fenced code blocks with a language for syntax highlighting. Every fenced block (code,
+commands, script output) is shown as a dark collapsible panel. The header shows the language and
+line count, with **copy** and, for blocks taller than about 26 lines, **+ show all**. Long blocks
+scroll inside a fixed-height panel instead of taking over the page, and clicking the header
+collapses the panel. Inline `code` is unchanged.
+
+Optional settings go in braces after the language:
+
+````markdown
+```python {title="mini_loop.py"}
+...
+```
+
+```text {title="Output" collapsed=true}
+...
+```
+````
+
+| Setting | Effect |
+|---------|--------|
+| `title="..."` | Shown in the header instead of the language (a file name, "Output", ...) |
+| `collapsed=true` | The panel starts closed; readers click the header to open it |
+
+Use `text` as the language for plain output. The default panel height is `--ml-code-max` in
+`assets/css/manlog.css`.
 
 ````markdown
 ```python

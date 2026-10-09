@@ -189,7 +189,7 @@ Numbers make this concrete. This script runs the same work sequentially, with th
 processes, and with asyncio. `time.sleep` stands in for a network call, since both block and
 release the GIL:
 
-```python
+```python {title="bench.py"}
 import asyncio, time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
@@ -245,7 +245,7 @@ and asyncio both overlapped all twenty waits, finishing in the time of one.
 
 `counter += 1` looks like one step, but it is several bytecode instructions:
 
-```text
+```text {title="Bytecode of counter += 1"}
 LOAD_GLOBAL   counter     # read
 LOAD_CONST    1
 BINARY_OP     +=          # add
@@ -259,7 +259,7 @@ usually *happens* to print the right total. I got exactly 4,000,000 on 3.11, 3.1
 Nothing guarantees it, though, and as soon as anything that releases the GIL sits between the
 read and the write, updates vanish:
 
-```python
+```python {title="race.py"}
 import threading, time
 
 balance = 0
@@ -473,7 +473,7 @@ There are only three pieces:
 - **The loop**: runs every ready task, then sleeps until a read finishes, completes that read's
   Future, and repeats.
 
-```python
+```python {title="mini_loop.py"}
 """A tiny event loop that reads two files "concurrently", without asyncio."""
 import queue
 import threading
@@ -576,7 +576,7 @@ if __name__ == "__main__":
 
 Output:
 
-```text
+```text {title="Output"}
 [0.00s] task A: running
 [0.00s] task A: paused on a read
 [0.00s] task B: running
@@ -596,7 +596,7 @@ because both reads were waiting at the same time.
 
 Now set `WRONG_WAY = True`. The coroutine is still `async def`, but it reads the file directly:
 
-```text
+```text {title="Output with WRONG_WAY = True"}
 [0.00s] task A: running
 [1.00s] task A: finished, got 'hello from a'
 [1.00s] task B: running

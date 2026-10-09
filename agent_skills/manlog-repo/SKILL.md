@@ -57,6 +57,7 @@ layouts/                     man'log layer; overrides the theme
   blog/list.html, term.html  card grids + tag bar via _partials/manlog/listing.html
   pagefind.html              search page (Pagefind Component UI, faceted tag filter)
   _markup/render-passthrough.html        $..$/$$..$$ -> KaTeX HTML at build time (transform.ToMath)
+  _markup/render-codeblock.html          every other ``` block -> <details class="ml-code"> panel
   _markup/render-codeblock-mermaid.html  ```mermaid -> <pre class="mermaid">
   _shortcodes/embed.html, video.html     iframe embeds (Claude artifacts), looping videos
   _partials/manlog/head-extras.html      the ONLY place CSS/JS is injected into <head>
@@ -67,6 +68,7 @@ assets/css/manlog.css        all man'log styles (--ml-* vars mapped to theme var
 assets/css/extended/palette.css   PaperMod colour overrides (cream/terracotta)
 assets/js/toc-rail.js        right-side hover contents rail on posts
 assets/js/mermaid-init.js    Mermaid loader + light palette themeVariables
+assets/js/code-blocks.js     copy + show-all buttons for code panels
 archetypes/blog.md           front matter for `hugo new blog/...`
 static/                      favicons (Twemoji 🪵 log), site.webmanifest
 pagefind.yml                 index only blog/**/index.html; exclude_selectors for UI chrome, katex, mermaid
@@ -81,6 +83,11 @@ pagefind.yml                 index only blog/**/index.html; exclude_selectors fo
 - **Conditional assets**: render hooks set `.Page.Store` flags (`hasMath`, `hasMermaid`);
   `head-extras.html` calls `$noop := .WordCount` first to force content rendering, then loads
   KaTeX CSS / Mermaid only on pages that need them.
+- **Code panels**: `render-codeblock.html` wraps Hugo's highlighted output in a collapsible
+  `<details class="ml-code">` (header: label/title, line count, show all, copy; body capped at
+  `--ml-code-max` with its own scroll). Sets `hasCode`, which loads `assets/js/code-blocks.js`.
+  PaperMod copy buttons are off. Generic `.post-content details` card styles must keep
+  `:not(.ml-code)`.
 - **Page resources**: `[contentTypes]` lists only Markdown, so `.html` files in a post folder
   are plain resources (used by `{{< embed >}}`), not pages.
 - **Cards**: cover = front matter `thumbnail`, else `cover.*` in the bundle (800x450 webp), else
