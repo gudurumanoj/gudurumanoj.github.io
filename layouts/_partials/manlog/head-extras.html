@@ -26,6 +26,11 @@
 <script defer src="{{ $code.RelPermalink }}"></script>
 {{- end }}
 
+{{- if and .IsPage (strings.Contains .Content "footnote-ref") }}
+{{- $notes := resources.Get "js/sidenotes.js" | minify | fingerprint }}
+<script defer src="{{ $notes.RelPermalink }}"></script>
+{{- end }}
+
 {{- if and .IsPage (ne (.Param "toc") false) (or (eq .Type "blog") (eq (.Param "toc") true)) }}
 {{- $toc := resources.Get "js/toc-rail.js" | minify | fingerprint }}
 <script defer src="{{ $toc.RelPermalink }}" data-min-headings="{{ $cfg.tocMinHeadings | default 3 }}"></script>

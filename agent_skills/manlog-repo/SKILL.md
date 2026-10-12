@@ -60,6 +60,8 @@ layouts/                     man'log layer; overrides the theme
   _markup/render-codeblock.html          every other ``` block -> <details class="ml-code"> panel
   _markup/render-codeblock-mermaid.html  ```mermaid -> <pre class="mermaid">
   _shortcodes/embed.html, video.html     iframe embeds (Claude artifacts), looping videos
+  _shortcodes/cite.html, references.html {{< cite "id" >}} -> [n]; numbered list from front matter `references`
+  _partials/manlog/cite-order.html       ids in first-citation order, parsed from .RawContent
   _partials/manlog/head-extras.html      the ONLY place CSS/JS is injected into <head>
   _partials/manlog/card.html, listing.html, pagination.html, icon.html
   _partials/extend_head.html, extend-head.html, head-additions.html, head/custom.html
@@ -69,6 +71,7 @@ assets/css/extended/palette.css   PaperMod colour overrides (cream/terracotta)
 assets/js/toc-rail.js        right-side hover contents rail on posts
 assets/js/mermaid-init.js    Mermaid loader + light palette themeVariables
 assets/js/code-blocks.js     copy + show-all buttons for code panels
+assets/js/sidenotes.js       footnotes -> absolutely positioned .ml-sidenote in the right margin (>=1200px)
 archetypes/blog.md           front matter for `hugo new blog/...`
 static/                      favicons (Twemoji 🪵 log), site.webmanifest
 pagefind.yml                 index only blog/**/index.html; exclude_selectors for UI chrome, katex, mermaid
@@ -98,6 +101,19 @@ pagefind.yml                 index only blog/**/index.html; exclude_selectors fo
   use front matter `aliases` if a slug ever changes.
 - **TOC rail**: `toc-rail.js` builds ticks from h2/h3 with ids; shown on blog posts with at
   least `[manlog].tocMinHeadings` (3) headings unless front matter `toc: false`.
+- **Post layout + side notes**: below 1200px posts use PaperMod's 720px column. From 1200px,
+  `.main:has(.post-single)` widens and `.post-single` gets right padding: text column
+  `--ml-post-text` (790px) + gap + `--ml-note-width` (230px), leaving room for the fixed TOC rail
+  (checked at 1280px: notes end at 1160, rail starts at 1212). `sidenotes.js` loads when
+  `.Content` contains `footnote-ref`; it clones each goldmark footnote into
+  `.post-content > .ml-sidenote`, stacks them so they don't overlap, re-lays out via
+  ResizeObserver, and adds `.ml-has-sidenotes` (hides `.footnotes`). The 1200px breakpoint is
+  duplicated in CSS and JS.
+- **Citations**: front matter `references: [{id, text, url?}]`; `{{< cite "a" "b" >}}` renders
+  `<span class="ml-cite">[1, 2]</span>` linking `#ref-<id>`; `{{< references >}}` emits
+  `<h2 id="references">` + `ol.ml-refs` (cited first, in order, then uncited). Order is parsed
+  from `.RawContent` (escaped `{{</* cite */>}}` examples are ignored), not from `.Store`, so it
+  stays correct across server rebuilds. Unknown id -> `errorf`.
 - **Search**: Pagefind runs after Hugo (CI and locally). Filters come from
   `<meta data-pagefind-filter="tag[content]" ...>` emitted in head-extras for blog posts.
   Multi-select within a filter is AND. Ctrl/Cmd+K and any `[data-ml-search]` element open a
@@ -126,4 +142,5 @@ Build with drafts, serve `public/` (`python3 -m http.server 1414 --bind 127.0.0.
 pages in a headless browser (Playwright Chromium works; take screenshots of `/`, `/blog/`, the
 feature-tour post, and `/search/`). The feature-tour post
 (`content/blog/manlog-feature-tour/index.md`) exercises every feature: math,
-Mermaid, SVG diagram, embed, GIF, code, TOC rail. Stop the server and delete build output after.
+Mermaid, SVG diagram, embed, GIF, code, side notes, citations, TOC rail. Check post layout at
+1920, 1280 and 1100px (side notes vs bottom notes). Stop the server and delete build output after.

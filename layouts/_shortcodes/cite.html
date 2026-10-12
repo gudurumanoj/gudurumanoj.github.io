@@ -1,0 +1,19 @@
+{{- /*
+  In-text citation, numbered by first appearance and linked to the References list.
+  Usage: {{< cite "pep703" >}} or {{< cite "pep703" "pep779" >}}  ->  [1] / [1, 2]
+  Ids come from the post's `references` front matter; end the post with {{< references >}}.
+*/ -}}
+{{- $refs := .Page.Params.references }}
+{{- $order := partial "manlog/cite-order.html" .Page }}
+{{- $links := slice }}
+{{- range .Params }}
+  {{- $id := . }}
+  {{- $entry := "" }}
+  {{- range where $refs "id" $id }}{{ $entry = . }}{{ end }}
+  {{- if not $entry }}{{ errorf "cite: no reference with id %q in the front matter (%s)" $id $.Position }}{{ end }}
+  {{- $n := 0 }}
+  {{- range $i, $v := $order }}{{ if eq $v $id }}{{ $n = add $i 1 }}{{ end }}{{ end }}
+  {{- $title := $entry.text | markdownify | plainify | htmlUnescape }}
+  {{- $links = $links | append (printf `<a href="#ref-%s" title="%s">%d</a>` (urlize $id) (htmlEscape $title) $n) }}
+{{- end }}
+{{- printf `<span class="ml-cite">[%s]</span>` (delimit $links ", ") | safeHTML -}}

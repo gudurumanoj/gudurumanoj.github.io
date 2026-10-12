@@ -1,0 +1,23 @@
+{{- /*
+  Numbered "References" section built from the post's `references` front matter:
+    references:
+      - id: pep703
+        text: 'Sam Gross. "PEP 703: Making the Global Interpreter Lock Optional in CPython." 2023.'
+        url: https://peps.python.org/pep-0703/
+  Cited entries come first, in citation order; uncited ones follow. Usage: {{< references >}}
+*/ -}}
+{{- $refs := .Page.Params.references }}
+{{- if not $refs }}{{ errorf "references: the post has no `references` front matter (%s)" .Position }}{{ end }}
+{{- $order := partial "manlog/cite-order.html" .Page }}
+{{- range $refs }}{{ if not (in $order .id) }}{{ $order = $order | append .id }}{{ end }}{{ end }}
+<h2 id="references">{{ .Get "title" | default "References" }}</h2>
+<ol class="ml-refs">
+{{- range $i, $id := $order }}
+  {{- range first 1 (where $refs "id" $id) }}
+  <li id="ref-{{ urlize .id }}">
+    <span class="ml-refs-num">[{{ add $i 1 }}]</span>
+    <span>{{ .text | markdownify }}{{ with .url }} <a href="{{ . }}">{{ replaceRE `^https?://(www\.)?` "" . | strings.TrimSuffix "/" }}</a>{{ end }}</span>
+  </li>
+  {{- end }}
+{{- end }}
+</ol>

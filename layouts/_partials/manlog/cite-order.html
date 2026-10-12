@@ -1,0 +1,12 @@
+{{- /*
+  Reference ids in the order a post first cites them, read from the raw Markdown so the
+  numbering is stable across rebuilds. Shared by the cite and references shortcodes.
+*/ -}}
+{{- $order := slice }}
+{{- range findRESubmatch `\{\{[<%]\s*cite\s+(.*?)\s*[>%]\}\}` .RawContent }}
+  {{- range findRE `"[^"]*"|\S+` (index . 1) }}
+    {{- $id := trim . `"` }}
+    {{- if not (in $order $id) }}{{ $order = $order | append $id }}{{ end }}
+  {{- end }}
+{{- end }}
+{{- return $order }}

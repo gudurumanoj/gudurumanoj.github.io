@@ -60,13 +60,16 @@ many-per-post and appear in the UI automatically.
 │   │   └── render-codeblock-mermaid.html  # ```mermaid blocks -> diagrams
 │   ├── _shortcodes/
 │   │   ├── embed.html             # {{< embed >}} iframe for HTML demos / Claude artifacts
-│   │   └── video.html             # {{< video >}} looping clips
+│   │   ├── video.html             # {{< video >}} looping clips
+│   │   ├── cite.html              # {{< cite "id" >}} -> [1] link to the References list
+│   │   └── references.html        # {{< references >}} numbered list from front matter
 │   └── _partials/
 │       ├── manlog/head-extras.html  # the one place our CSS/JS gets added to <head>
 │       ├── manlog/card.html         # one post card
 │       ├── manlog/listing.html      # shared grid page (header, tag bar, grid, pagination)
 │       ├── manlog/pagination.html
 │       ├── manlog/icon.html         # social icons
+│       ├── manlog/cite-order.html   # citation order, shared by cite + references
 │       ├── extend_head.html         # theme hook shims: each is one line that
 │       ├── extend-head.html         #   includes manlog/head-extras.html, under the
 │       ├── head-additions.html      #   hook names used by PaperMod, Blowfish/Congo,
@@ -76,6 +79,7 @@ many-per-post and appear in the UI automatically.
 │   └── js/
 │       ├── toc-rail.js    # right-side contents rail on posts
 │       ├── code-blocks.js # copy / show-all buttons on code panels
+│       ├── sidenotes.js   # footnotes -> right-margin side notes on wide screens
 │       └── mermaid-init.js
 ├── archetypes/blog.md     # front matter template used by `hugo new blog/...`
 ├── static/                # copied as-is: favicons, webmanifest, (optional) avatar
@@ -103,7 +107,7 @@ flowchart LR
 1. **Content** (`content/`) is plain Markdown with front matter. It contains no theme-specific
    shortcodes, so it moves between themes untouched.
 2. **The man'log layer** (`layouts/`, `assets/`) owns every feature that matters: math, Mermaid,
-   embeds, cards, the landing page, the contents rail, and search. Our page templates only fill
+   embeds, cards, the landing page, the contents rail, side notes, citations, and search. Our page templates only fill
    the `main` block, which nearly every Hugo theme defines, so the theme still draws the header,
    footer and fonts around them. Colours come from the theme's CSS variables when present, with
    fallbacks.
@@ -140,6 +144,16 @@ flowchart LR
 - **Contents rail**: `toc-rail.js` reads the `h2`/`h3` headings of the rendered post, so it does
   not depend on the theme's templates. It is loaded on posts under `blog/` unless the post sets
   `toc: false`, and shows when a post has at least `tocMinHeadings` headings.
+- **Post width and side notes**: PaperMod's reading column is 720px (`--main-width`), a
+  comfortable line length, which leaves wide screens mostly empty. From 1200px up, `manlog.css`
+  widens posts to a 790px text column plus a 230px margin column on the right, still clear of
+  the contents rail. `sidenotes.js` (loaded only on pages with footnotes) copies each Markdown
+  footnote into that margin next to its reference and hides the bottom list. Below 1200px the
+  layout and footnotes are PaperMod's defaults, with a "Notes" label added. The breakpoint
+  appears in both `manlog.css` and `sidenotes.js`; change both together.
+- **Citations**: `{{< cite >}}` and `{{< references >}}` read the post's `references` front
+  matter. Numbering comes from the order of `cite` calls in the raw Markdown
+  (`cite-order.html`), so it is stable across rebuilds. An unknown id is a build error.
 - **Search**: after Hugo builds `public/`, Pagefind indexes post pages (`pagefind.yml` limits it
   to `blog/**/index.html`; listing pages opt out with `data-pagefind-ignore`). Tags become
   the search filter via `<meta data-pagefind-filter>` tags in `head-extras.html`.

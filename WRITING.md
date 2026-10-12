@@ -299,13 +299,61 @@ An "Open full screen" link is shown under every embed. External URLs work too, b
 (including claude.ai share links) refuse to be embedded, so saving the file locally is the
 reliable route.
 
+## Side notes and references
+
+There are two kinds of notes, and they end up in different places:
+
+- **Footnotes are asides.** Write them as Markdown footnotes. On screens 1200px and wider each one
+  appears in the right margin, level with the line that refers to it, the way the Intology blog
+  does. On narrower screens they go back to a "Notes" list at the bottom of the post.
+- **Citations point to sources.** They show as `[1]`, `[2, 3]` in the text and link to a numbered
+  References list at the end of the post.
+
+```markdown
+The switch interval is 5 ms by default.[^switch]
+
+[^switch]: Before Python 3.2 it was every 100 bytecode instructions.
+```
+
+Keep side notes to a few lines; the margin column is narrow, and long notes push the next ones
+down. Name footnotes (`[^switch]`) rather than numbering them by hand; they are numbered in
+order of appearance either way. Put the definition after the paragraph or list that uses it, not
+inside a list.
+
+For citations, list each source once in the front matter, cite it by `id` anywhere in the text,
+and end the post with `{{</* references */>}}`:
+
+```markdown
+---
+title: "..."
+references:
+  - id: pep703
+    text: 'Sam Gross. "PEP 703: Making the Global Interpreter Lock Optional in CPython." 2023.'
+    url: https://peps.python.org/pep-0703/
+  - id: attention
+    text: 'Vaswani et al. "Attention Is All You Need." NeurIPS 2017.'
+    url: https://arxiv.org/abs/1706.03762
+---
+
+PEP 703 made the GIL optional {{</* cite "pep703" */>}}. Two sources at once: {{</* cite "pep703" "attention" */>}}.
+
+...
+
+{{</* references */>}}
+```
+
+- Numbers follow the order of first citation, so you never renumber by hand. Entries that are
+  listed but never cited go at the end of the list.
+- `text` takes Markdown; `url` is optional and is shown as a short link after the text.
+  Use single quotes around `text` when it contains double quotes, and write `''` for an
+  apostrophe inside single quotes.
+- Citing an `id` that isn't in the front matter stops the build with an error that names it.
+- `{{</* references */>}}` adds the "References" heading itself (it also appears in the contents
+  rail). `{{</* references title="Further reading" */>}}` changes the heading.
+
 ## Other handy bits
 
 ```markdown
-Footnotes work.[^1]
-
-[^1]: Like this.
-
 > Block quotes for definitions or quotations.
 
 <details>

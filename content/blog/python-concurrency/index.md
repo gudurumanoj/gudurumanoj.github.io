@@ -4,6 +4,28 @@ date: 2026-10-09T11:00:00+05:30
 draft: false
 tags: ["python", "code", "infra", "interview"]
 summary: "Multithreading, multiprocessing and asyncio in Python: what each one really does, why the GIL decides most of it, a tiny event loop built from scratch, and a simple rule for picking the right one."
+references:
+  - id: pep703
+    text: 'Sam Gross. "PEP 703: Making the Global Interpreter Lock Optional in CPython." 2023.'
+    url: https://peps.python.org/pep-0703/
+  - id: pep779
+    text: 'Thomas Wouters, Matt Page, Sam Gross. "PEP 779: Criteria for supported status for free-threaded Python." 2025.'
+    url: https://peps.python.org/pep-0779/
+  - id: pep684
+    text: 'Eric Snow. "PEP 684: A Per-Interpreter GIL." 2022.'
+    url: https://peps.python.org/pep-0684/
+  - id: pep734
+    text: 'Eric Snow. "PEP 734: Multiple Interpreters in the Stdlib." 2023.'
+    url: https://peps.python.org/pep-0734/
+  - id: pep492
+    text: 'Yury Selivanov. "PEP 492: Coroutines with async and await syntax." 2015.'
+    url: https://peps.python.org/pep-0492/
+  - id: mp-docs
+    text: 'Python documentation. "multiprocessing: Contexts and start methods."'
+    url: https://docs.python.org/3/library/multiprocessing.html#contexts-and-start-methods
+  - id: whatsnew314
+    text: 'Python documentation. "What''s New In Python 3.14."'
+    url: https://docs.python.org/3/whatsnew/3.14.html
 ---
 
 Python has three ways to do more than one thing at a time: **threads**, **processes**, and
@@ -181,7 +203,10 @@ many cores you have. But the GIL is released in exactly the places that matter f
 - **Many C extensions during heavy computation**: NumPy, `hashlib`, `zlib`, and many image and
   crypto libraries.
 - **Periodically**: a thread that holds the GIL is asked to drop it after the *switch interval*
-  (`sys.getswitchinterval()`, 5 ms by default) if another thread is waiting.
+  (`sys.getswitchinterval()`, 5 ms by default) if another thread is waiting.[^switch]
+
+[^switch]: The time-based switch interval arrived with the "new GIL" in Python 3.2. Before that,
+    a thread was asked to let go every 100 bytecode instructions (`sys.setcheckinterval`).
 
 ### Measuring it
 
@@ -219,7 +244,10 @@ if __name__ == "__main__":
     timed("I/O, asyncio", lambda: asyncio.run(main()))
 ```
 
-On my Linux machine with Python 3.13:
+On my Linux machine with Python 3.13:[^bench]
+
+[^bench]: One run each. Your absolute numbers will differ, but the pattern won't: threads match
+    sequential for CPU work, and every concurrent option finishes the waits in about 0.5 s.
 
 | Workload | Sequential | Threads | Processes | Asyncio |
 |----------|-----------:|--------:|----------:|--------:|
@@ -322,9 +350,12 @@ let `ThreadPoolExecutor` return results instead of writing to globals.
 - **No parallelism for pure-Python CPU work.** The GIL serializes it, and the switching adds
   overhead, so threads are no faster and sometimes slower than one thread.
 - **Cost per thread.** Each thread reserves a stack (often 8 MB of *virtual* memory on Linux,
-  far less actually used) and a kernel scheduling entry. Hundreds are fine; tens of thousands get
-  expensive.
+  far less actually used)[^stack] and a kernel scheduling entry. Hundreds are fine; tens of
+  thousands get expensive.
 - **Races and deadlocks**, as above.
+
+[^stack]: On Linux the default thread stack size follows `ulimit -s`, usually 8 MB.
+    `threading.stack_size()` sets a smaller size for threads created after the call.
 
 ## Multiprocessing
 
@@ -333,7 +364,7 @@ let `ThreadPoolExecutor` return results instead of writing to globals.
 Each worker is a **separate OS process** with its own interpreter, its own memory and its own
 GIL. The OS runs them on different cores, so you get true parallelism.
 
-How a child process is created depends on the **start method**:
+How a child process is created depends on the **start method** {{< cite "mp-docs" "whatsnew314" >}}:
 
 | Method | What it does | Trade-off | Default on |
 |--------|--------------|-----------|------------|
@@ -378,7 +409,7 @@ doesn't take down the rest.
 
 **One thread, one event loop.** No parallelism at all, just very efficient concurrency.
 
-- `async def` defines a **coroutine function**. Calling it returns a coroutine object that can
+- `async def` defines a **coroutine function** {{< cite "pep492" >}}. Calling it returns a coroutine object that can
   pause at every `await`. When it pauses, its state (local variables, position in the code) is
   saved in a small Python object, not on an OS thread stack.
 - A **Task** wraps a coroutine so the loop can run it. A **Future** is a placeholder for a
@@ -708,13 +739,15 @@ Production Python rarely uses just one model:
 
 ## Where things are heading
 
-- **Free-threaded Python.** PEP 703 added an optional CPython build without the GIL:
-  experimental in 3.13, officially supported (but not the default) in 3.14. On that build
+- **Free-threaded Python.** PEP 703 added an optional CPython build without the GIL
+  {{< cite "pep703" >}}: experimental in 3.13, officially supported (but not the default) in 3.14
+  {{< cite "pep779" >}}. On that build
   (`python3.13t`, `python3.14t`), threads run pure-Python CPU work in parallel, which erodes the
   main reason to use multiprocessing. Single-threaded code runs somewhat slower, and some C
   extensions aren't compatible yet. `sys._is_gil_enabled()` tells you which build you're on.
-- **Subinterpreters.** Python 3.12 gave each subinterpreter its own GIL, and 3.14 added
-  `concurrent.interpreters` and `InterpreterPoolExecutor` to use them from Python code: several
+- **Subinterpreters.** Python 3.12 gave each subinterpreter its own GIL {{< cite "pep684" >}}, and
+  3.14 added `concurrent.interpreters` and `InterpreterPoolExecutor` to use them from Python code
+  {{< cite "pep734" >}}: several
   interpreters in one process, running in parallel with less overhead than processes, but still
   with restricted data sharing.
 
@@ -841,3 +874,5 @@ free-threaded build, threads become a real option.
   connections, but one blocking call freezes everything.
 - Under the hood, asyncio is three small ideas: a Future that yields itself, a Task that drives a
   coroutine with `send()`, and a loop that sleeps until the OS reports something is ready.
+
+{{< references >}}

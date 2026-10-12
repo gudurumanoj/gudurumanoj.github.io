@@ -3,7 +3,8 @@ name: manlog-write-post
 description: >-
   Writes or edits a blog post for man'log (gudurumanoj.github.io, Hugo). Gives the exact folder
   layout, front matter, tags, and Markdown syntax for images, GIFs, video, code,
-  LaTeX math, Mermaid, SVG diagrams, and embedded HTML demos / Claude artifacts. Use when the
+  LaTeX math, Mermaid, SVG diagrams, side notes, citations, and embedded HTML demos / Claude
+  artifacts. Use when the
   user asks to write, draft, add, publish, or edit a blog post or note on this site.
 ---
 
@@ -36,6 +37,7 @@ summary: "One or two sentences for the card and search results."
 # thumbnail: diagram.png            # card image; default is any cover.* in the folder
 # toc: false                        # hide the right-side contents rail
 # description: "Subtitle under the title on the post page."
+# references: [...]                 # sources for {{< cite >}}, see below
 ---
 ```
 
@@ -113,7 +115,25 @@ Colours come from CSS classes, so write only coordinates and text:
 (adds an "Open full screen" link). Match the site palette in demos: background `#fdfcf8`,
 text `#2d2a23`, accent `#a66b4f`.
 
-**Other**: footnotes `[^1]`, tables, blockquotes, `<details><summary>...</summary>...</details>`,
-and emoji shortcodes (`:tada:`) all work.
+**Footnotes = side notes** (asides): `text.[^name]` plus `[^name]: Short note.` after the
+paragraph or list (not inside a list). On wide screens they appear in the right margin next to
+the line; on narrow ones in a "Notes" list at the bottom. Keep them to a few lines.
+
+**Citations** (sources) go in a numbered References list at the end. Add to the front matter:
+
+```yaml
+references:
+  - id: pep703
+    text: 'Sam Gross. "PEP 703: Making the Global Interpreter Lock Optional in CPython." 2023.'
+    url: https://peps.python.org/pep-0703/     # optional
+```
+
+cite in the text with `{{< cite "pep703" >}}` or `{{< cite "pep703" "other-id" >}}` (renders
+`[1]` / `[1, 2]`, numbered by first citation), and end the post with `{{< references >}}`
+(it adds the heading). An unknown id fails the build. Only cite sources the user gave or that
+you have verified exist.
+
+**Other**: tables, blockquotes, `<details><summary>...</summary>...</details>`, and emoji
+shortcodes (`:tada:`) all work.
 
 Reference post using every feature: `content/blog/manlog-feature-tour/index.md`.

@@ -50,6 +50,16 @@
 .ml-search { max-width: 760px; }
 :where(.ml-listing, .ml-home, .ml-toc) a { text-decoration: none; }
 
+/* Posts on wide screens: a slightly wider text column plus a right margin column that
+   holds side notes (assets/js/sidenotes.js). Must leave room for the fixed TOC rail. */
+@media (min-width: 1200px) {
+  :root { --ml-post-text: 790px; --ml-note-gap: 40px; --ml-note-width: 230px; }
+  .main:has(.post-single) {
+    max-width: calc(var(--ml-post-text) + var(--ml-note-gap) + var(--ml-note-width) + 20px + var(--gap, 24px) * 2);
+  }
+  .post-single { padding-right: calc(var(--ml-note-gap) + var(--ml-note-width) + 20px); }
+}
+
 /* ---------- landing page ---------- */
 .ml-home > section { max-width: 760px; margin-inline: auto; }
 
@@ -382,6 +392,65 @@
   word-break: normal;
   background: transparent !important;
 }
+
+/* Footnotes ([^1]) become side notes on wide screens; otherwise they stay at the bottom. */
+.md-content a.footnote-ref {
+  padding: 0 1px;
+  font-size: 0.8em;
+  color: var(--ml-accent-text);
+  text-decoration: none;
+  box-shadow: none;
+}
+.md-content .footnotes { margin-top: 32px; font-size: 15px; }
+.md-content .footnotes > hr { display: none; }
+.md-content .footnotes::before {
+  content: "Notes";
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: var(--ml-text);
+}
+.ml-sidenote { display: none; }
+.post-content.ml-has-sidenotes { position: relative; }
+.post-content.ml-has-sidenotes > .footnotes { display: none; }
+.post-content.ml-has-sidenotes > .ml-sidenote {
+  position: absolute;
+  left: calc(100% + var(--ml-note-gap));
+  width: var(--ml-note-width);
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ml-muted);
+  transition: color 0.15s;
+}
+.ml-sidenote.is-active { color: var(--ml-text); }
+.ml-sidenote-num { font-size: 12px; color: var(--ml-accent-text); }
+.md-content .ml-sidenote p { margin: 0 0 6px; }
+.md-content .ml-sidenote code { font-size: 0.85em; }
+
+/* Citations ({{< cite >}}) and the numbered list ({{< references >}}) at the end of a post. */
+.md-content .ml-cite a {
+  color: var(--ml-accent-text);
+  text-decoration: none;
+  box-shadow: none;
+}
+.md-content .ml-cite a:hover { text-decoration: underline; }
+.md-content ol.ml-refs {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 15px;
+}
+.md-content ol.ml-refs li {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  margin: 0;
+  padding: 10px 0;
+  border-top: 1px solid var(--ml-border);
+}
+.ml-refs-num { color: var(--ml-accent-text); font-size: 14px; }
+.md-content .ml-refs li:target { background: var(--ml-soft); }
 
 .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
 .ml-math-error { color: #d32f2f; }

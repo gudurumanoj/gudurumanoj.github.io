@@ -5,6 +5,13 @@ draft: false
 tags: ["building-block", "meta"]
 summary: "A reference post that exercises every feature of this blog: images, GIFs, code, LaTeX math, Mermaid diagrams, embedded interactive demos, and the contents rail on the right."
 aliases: ["/blog/building-blocks/manlog-feature-tour/"]
+references:
+  - id: tufte-css
+    text: 'Dave Liepmann. "Tufte CSS." Sidenotes and margin notes in the style of Edward Tufte.'
+    url: https://edwardtufte.github.io/tufte-css/
+  - id: hugo-shortcodes
+    text: 'Hugo documentation. "Shortcodes."'
+    url: https://gohugo.io/content-management/shortcodes/
 ---
 
 This post is both a demo and a cheat sheet. Open
@@ -68,7 +75,7 @@ def softmax(x: torch.Tensor, dim: int = -1) -> torch.Tensor:
 ```
 
 ```bash
-hugo new blog/ml/my-new-post/index.md
+hugo new blog/my-new-post/index.md
 hugo server -D
 ```
 
@@ -180,8 +187,22 @@ the hover panel.
 Posts with fewer than three headings don't show the rail. To hide it on a specific
 post, set `toc: false` in the front matter.
 
+## Side notes and references
+
+A footnote is an aside: a Markdown footnote like `[^2]` appears in the right margin next to
+the line that refers to it on wide screens, and in a "Notes" list at the bottom on narrow
+ones.[^2] Hovering the number highlights its note.
+
+A citation points to a source instead. List sources once in the front matter under
+`references`, cite them with `{{</* cite "tufte-css" */>}}` {{< cite "tufte-css" >}}, and end the post with
+`{{</* references */>}}`. Numbers follow the order of first citation, so
+`{{</* cite "hugo-shortcodes" "tufte-css" */>}}` gives {{< cite "hugo-shortcodes" "tufte-css" >}}.
+
 ## Wrapping up
 
 That covers the building blocks. See `WRITING.md` in the repository for the full guide.
 
-[^1]: Footnotes are collected at the bottom of the post.
+{{< references >}}
+
+[^1]: Footnotes sit beside the text on wide screens and at the bottom on narrow ones.
+[^2]: Like this one. Keep side notes to a few lines; anything longer belongs in the text.
