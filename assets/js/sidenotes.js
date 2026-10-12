@@ -5,7 +5,7 @@
   const content = document.querySelector(".post-content");
   if (!content || !content.querySelector(".footnotes")) return;
 
-  const wide = window.matchMedia("(min-width: 1200px)");
+  const wide = window.matchMedia("(min-width: 1280px)");
   const notes = [];
 
   content.querySelectorAll("a.footnote-ref").forEach((ref) => {

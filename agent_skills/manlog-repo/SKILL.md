@@ -71,7 +71,7 @@ assets/css/extended/palette.css   PaperMod colour overrides (cream/terracotta)
 assets/js/toc-rail.js        right-side hover contents rail on posts
 assets/js/mermaid-init.js    Mermaid loader + light palette themeVariables
 assets/js/code-blocks.js     copy + show-all buttons for code panels
-assets/js/sidenotes.js       footnotes -> absolutely positioned .ml-sidenote in the right margin (>=1200px)
+assets/js/sidenotes.js       footnotes -> absolutely positioned .ml-sidenote in the right margin (>=1280px)
 archetypes/blog.md           front matter for `hugo new blog/...`
 static/                      favicons (Twemoji 🪵 log), site.webmanifest
 pagefind.yml                 index only blog/**/index.html; exclude_selectors for UI chrome, katex, mermaid
@@ -101,13 +101,14 @@ pagefind.yml                 index only blog/**/index.html; exclude_selectors fo
   use front matter `aliases` if a slug ever changes.
 - **TOC rail**: `toc-rail.js` builds ticks from h2/h3 with ids; shown on blog posts with at
   least `[manlog].tocMinHeadings` (3) headings unless front matter `toc: false`.
-- **Post layout + side notes**: below 1200px posts use PaperMod's 720px column. From 1200px,
+- **Post layout + side notes**: below 1280px posts use PaperMod's 720px column. From 1280px,
   `.main:has(.post-single)` widens and `.post-single` gets right padding: text column
-  `--ml-post-text` (790px) + gap + `--ml-note-width` (230px), leaving room for the fixed TOC rail
-  (checked at 1280px: notes end at 1160, rail starts at 1212). `sidenotes.js` loads when
+  `--ml-post-text` (760px) + `--ml-note-gap` (`clamp(48px, 4vw, 72px)`, close to Intology's
+  spacing) + `--ml-note-width` (260px: 28px number column + text), leaving room for the fixed
+  TOC rail (checked at 1280px: notes end at 1166, rail starts at 1212). `sidenotes.js` loads when
   `.Content` contains `footnote-ref`; it clones each goldmark footnote into
   `.post-content > .ml-sidenote`, stacks them so they don't overlap, re-lays out via
-  ResizeObserver, and adds `.ml-has-sidenotes` (hides `.footnotes`). The 1200px breakpoint is
+  ResizeObserver, and adds `.ml-has-sidenotes` (hides `.footnotes`). The 1280px breakpoint is
   duplicated in CSS and JS.
 - **Citations**: front matter `references: [{id, text, url?}]`; `{{< cite "a" "b" >}}` renders
   `<span class="ml-cite">[1, 2]</span>` linking `#ref-<id>`; `{{< references >}}` emits
@@ -143,4 +144,4 @@ pages in a headless browser (Playwright Chromium works; take screenshots of `/`,
 feature-tour post, and `/search/`). The feature-tour post
 (`content/blog/manlog-feature-tour/index.md`) exercises every feature: math,
 Mermaid, SVG diagram, embed, GIF, code, side notes, citations, TOC rail. Check post layout at
-1920, 1280 and 1100px (side notes vs bottom notes). Stop the server and delete build output after.
+1920, 1280 and 1279px (side notes vs bottom notes). Stop the server and delete build output after.

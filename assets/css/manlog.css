@@ -52,8 +52,8 @@
 
 /* Posts on wide screens: a slightly wider text column plus a right margin column that
    holds side notes (assets/js/sidenotes.js). Must leave room for the fixed TOC rail. */
-@media (min-width: 1200px) {
-  :root { --ml-post-text: 790px; --ml-note-gap: 40px; --ml-note-width: 230px; }
+@media (min-width: 1280px) {
+  :root { --ml-post-text: 760px; --ml-note-gap: clamp(48px, 4vw, 72px); --ml-note-width: 260px; }
   .main:has(.post-single) {
     max-width: calc(var(--ml-post-text) + var(--ml-note-gap) + var(--ml-note-width) + 20px + var(--gap, 24px) * 2);
   }
@@ -418,14 +418,14 @@
   left: calc(100% + var(--ml-note-gap));
   width: var(--ml-note-width);
   display: grid;
-  grid-template-columns: 18px 1fr;
-  font-size: 13px;
-  line-height: 1.55;
+  grid-template-columns: 28px 1fr;
+  font-size: 14px;
+  line-height: 1.5;
   color: var(--ml-muted);
   transition: color 0.15s;
 }
 .ml-sidenote.is-active { color: var(--ml-text); }
-.ml-sidenote-num { font-size: 12px; color: var(--ml-accent-text); }
+.ml-sidenote-num { padding-top: 1px; font-size: 11.5px; color: var(--ml-accent-text); }
 .md-content .ml-sidenote p { margin: 0 0 6px; }
 .md-content .ml-sidenote code { font-size: 0.85em; }
 
