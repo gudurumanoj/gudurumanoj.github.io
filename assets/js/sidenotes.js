@@ -1,11 +1,11 @@
 // Markdown footnotes ([^1]) as side notes: on wide screens each note is copied into the right
 // margin, level with its reference, and the footnote list at the bottom is hidden. Below the
-// breakpoint (must match the wide-post media query in manlog.css) the bottom list is used.
+// breakpoint (must match the side-note media query in manlog.css) the bottom list is used.
 (() => {
   const content = document.querySelector(".post-content");
   if (!content || !content.querySelector(".footnotes")) return;
 
-  const wide = window.matchMedia("(min-width: 1280px)");
+  const wide = window.matchMedia("(min-width: 1360px)");
   const notes = [];
 
   content.querySelectorAll("a.footnote-ref").forEach((ref) => {

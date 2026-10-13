@@ -50,14 +50,17 @@
 .ml-search { max-width: 760px; }
 :where(.ml-listing, .ml-home, .ml-toc) a { text-decoration: none; }
 
-/* Posts on wide screens: a slightly wider text column plus a right margin column that
-   holds side notes (assets/js/sidenotes.js). Must leave room for the fixed TOC rail. */
-@media (min-width: 1280px) {
-  :root { --ml-post-text: 760px; --ml-note-gap: clamp(48px, 4vw, 72px); --ml-note-width: 260px; }
-  .main:has(.post-single) {
-    max-width: calc(var(--ml-post-text) + var(--ml-note-gap) + var(--ml-note-width) + 20px + var(--gap, 24px) * 2);
+/* Posts on wide screens: a slightly wider text column, still centred. Side notes
+   (assets/js/sidenotes.js) sit in the empty space to its right and take whatever width is left
+   before the fixed TOC rail (~70px from the edge, plus up to ~17px of scrollbar inside 100vw). */
+@media (min-width: 1200px) {
+  .main:has(.post-single) { max-width: calc(760px + var(--gap, 24px) * 2); }
+}
+@media (min-width: 1360px) {
+  :root {
+    --ml-note-gap: clamp(40px, 3vw, 64px);
+    --ml-note-width: min(280px, calc((100vw - 760px) / 2 - var(--ml-note-gap) - 100px));
   }
-  .post-single { padding-right: calc(var(--ml-note-gap) + var(--ml-note-width) + 20px); }
 }
 
 /* ---------- landing page ---------- */

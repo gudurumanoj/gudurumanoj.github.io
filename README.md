@@ -145,12 +145,13 @@ flowchart LR
   not depend on the theme's templates. It is loaded on posts under `blog/` unless the post sets
   `toc: false`, and shows when a post has at least `tocMinHeadings` headings.
 - **Post width and side notes**: PaperMod's reading column is 720px (`--main-width`), a
-  comfortable line length, which leaves wide screens mostly empty. From 1280px up, `manlog.css`
-  widens posts to a 760px text column, a gap of 48-72px (grows with the screen), and a 260px
-  margin column on the right, still clear of the contents rail. `sidenotes.js` (loaded only on pages with footnotes) copies each Markdown
-  footnote into that margin next to its reference and hides the bottom list. Below 1280px the
-  layout and footnotes are PaperMod's defaults, with a "Notes" label added. The breakpoint
-  appears in both `manlog.css` and `sidenotes.js`; change both together.
+  comfortable line length, which leaves wide screens mostly empty. From 1200px up, `manlog.css`
+  widens the text column to 760px and keeps it centred. From 1360px up, `sidenotes.js` (loaded
+  only on pages with footnotes) copies each Markdown footnote into the empty space to the right
+  of the text, next to its reference, and hides the bottom list. The note column takes whatever
+  width is left before the contents rail (about 160px at 1366px, capped at 280px). Below 1360px
+  footnotes stay at the bottom under a "Notes" label. The 1360px breakpoint appears in both
+  `manlog.css` and `sidenotes.js`; change both together.
 - **Citations**: `{{< cite >}}` and `{{< references >}}` read the post's `references` front
   matter. Numbering comes from the order of `cite` calls in the raw Markdown
   (`cite-order.html`), so it is stable across rebuilds. An unknown id is a build error.

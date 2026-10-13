@@ -303,7 +303,7 @@ reliable route.
 
 There are two kinds of notes, and they end up in different places:
 
-- **Footnotes are asides.** Write them as Markdown footnotes. On screens 1280px and wider each one
+- **Footnotes are asides.** Write them as Markdown footnotes. On screens 1360px and wider each one
   appears in the right margin, level with the line that refers to it, the way the Intology blog
   does. On narrower screens they go back to a "Notes" list at the bottom of the post.
 - **Citations point to sources.** They show as `[1]`, `[2, 3]` in the text and link to a numbered
