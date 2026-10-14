@@ -2,7 +2,7 @@
 name: manlog-write-post
 description: >-
   Writes or edits a blog post for man'log (gudurumanoj.github.io, Hugo). Gives the exact folder
-  layout, front matter, tags, and Markdown syntax for images, GIFs, video, code,
+  layout, front matter, topics and tags, and Markdown syntax for images, GIFs, video, code,
   LaTeX math, Mermaid, SVG diagrams, side notes, citations, and embedded HTML demos / Claude
   artifacts. Use when the
   user asks to write, draft, add, publish, or edit a blog post or note on this site.
@@ -16,7 +16,7 @@ Only touch the post's own folder. Never commit or push (the owner does git).
 ## Steps
 
 1. Pick a slug: lowercase-hyphenated, it becomes the permanent URL. Posts are flat (no category
-   folders); topics come only from tags.
+   folders); grouping comes only from `topics` and `tags` in the front matter.
 2. Create `content/blog/<slug>/index.md` (the file must be named `index.md`) with the
    front matter below. Put images/GIFs/demos in the same folder and refer to them by file name.
 3. Write the post.
@@ -32,7 +32,8 @@ Only touch the post's own folder. Never commit or push (the owner does git).
 title: "Attention From Scratch"
 date: 2026-10-07T09:00:00+05:30     # IST; a future date hides the post until then
 draft: true
-tags: ["ml", "building-block"]
+topics: ["ml", "math"]              # 1-2 broad areas from the fixed list below
+tags: ["building-block", "attention"]  # specific labels, free-form
 summary: "One or two sentences for the card and search results."
 # thumbnail: diagram.png            # card image; default is any cover.* in the folder
 # toc: false                        # hide the right-side contents rail
@@ -41,11 +42,18 @@ summary: "One or two sentences for the card and search results."
 ---
 ```
 
-Tags: lowercase, hyphenated, usually 2-5 per post; reuse existing ones: `building-block`, `ml`,
-`math`, `cp`, `random-thoughts`, `meta`, `python`, `code`, `infra`, `interview`. New tags are fine
-when nothing fits: writing a tag creates its page, its chip in the `/blog/` tag bar and its search
-filter automatically. Never rename a post's folder; if unavoidable, add
-`aliases: ["/blog/old-slug/"]` to its front matter.
+**Topics** (broad, fixed list; they form the bar on `/blog/`): `ml`, `math`, `python`, `cpp`
+(C++), `cp` (competitive programming), `infra`, `system-design`. Use 1-2; only these slugs.
+A post with no fitting topic may omit `topics` (don't invent one; a topic outside the list
+warns at build time and needs `content/topics/<slug>/_index.md`, which is the owner's call).
+
+**Tags** (specific, free-form; chips on the card and a row on topic pages): lowercase,
+hyphenated, usually 1-3; reuse existing ones: `building-block`, `interview`, `concurrency`,
+`linux-utilities`, `random-thoughts`, `meta`. New tags are fine when nothing fits; they need no
+setup. Never use a topic name as a tag.
+
+Never rename a post's folder; if unavoidable, add `aliases: ["/blog/old-slug/"]` to its front
+matter.
 
 Card image: a `cover.png|jpg|webp` (16:9, ≥1200x675) in the folder is used automatically;
 otherwise a coloured tile with the title is generated. Don't create one unless asked.

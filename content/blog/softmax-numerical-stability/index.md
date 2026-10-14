@@ -2,7 +2,8 @@
 title: "Softmax and Numerical Stability"
 date: 2026-10-05T10:00:00+05:30
 draft: false
-tags: ["ml", "math", "building-block"]
+topics: ["ml", "math"]
+tags: ["building-block"]
 summary: "Why naive softmax returns NaN, why subtracting the max fixes it exactly, and the related tricks: log-sum-exp, log-softmax, cross-entropy from logits, low-precision accumulation, masked rows, and the online softmax behind FlashAttention."
 references:
   - id: milakov

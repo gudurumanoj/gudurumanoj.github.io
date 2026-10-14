@@ -51,7 +51,8 @@ The block between `---` lines at the top of `index.md`:
 title: "Attention From Scratch"        # required
 date: 2026-10-07T09:00:00+05:30        # required; sets ordering (newest first)
 draft: true                            # required; set to false to publish
-tags: ["ml", "building-block"]         # optional, but recommended
+topics: ["ml", "math"]                 # recommended; broad areas from the fixed list below
+tags: ["building-block", "attention"]  # optional; specific labels, any new one works
 summary: "One or two sentences shown on the card and in search results."  # recommended
 thumbnail: diagram.png                 # optional; overrides the automatic cover.* lookup
 toc: false                             # optional; hides the right-side contents rail
@@ -64,40 +65,56 @@ description: "Short subtitle shown under the title on the post page."      # opt
 | `title` | yes | Post title, card title, browser tab title |
 | `date` | yes | Sorting and the date on cards. A future date stays hidden until then |
 | `draft` | yes | `true` = only visible with `hugo server -D`; never published |
-| `tags` | no | Chips on the card; creates `/tags/<tag>/`; search filter |
+| `topics` | recommended | Label above the card title; the post appears on `/topics/<topic>/`; search filter |
+| `tags` | no | Chips at the bottom of the card; creates `/tags/<tag>/`; search filter |
 | `summary` | no | Card text and search excerpt. Without it, the first ~40 words are used |
 | `thumbnail` | no | Card image file in the post folder. Default: any `cover.*` file, else a generated tile |
 | `toc` | no | `false` hides the contents rail. It shows automatically on posts with 3+ `##`/`###` headings |
 | `description` | no | Subtitle under the post title |
 
-## Tags
+## Topics and tags
 
-Use lowercase, hyphenated tags and reuse existing ones so the filters stay useful:
+Posts are labelled at two levels:
 
-| Tag | Use for |
-|-----|---------|
-| `building-block` | Self-contained explainers of a core idea |
-| `ml` | Machine learning |
-| `math` | Math |
-| `cp` | Competitive programming |
-| `python`, `code` | Python and general programming |
-| `infra` | Systems, infrastructure, performance |
-| `interview` | Interview preparation |
-| `random-thoughts` | Opinions, musings, half-baked ideas |
-| `meta` | Posts about this site |
+- **Topics** are a short, fixed list of broad areas. They are the chips in the bar at the top
+  of `/blog/`, so the bar stays short however many posts there are. Usually one or two per post.
+- **Tags** are specific and free-form (`linux-utilities`, `concurrency`, `meta`). They appear
+  as chips at the bottom of each card, and a topic page lists the tags used inside it as a
+  second row ("Tags in Infra").
 
-Add new tags freely: writing a new tag in a post's front matter is all it takes to create it.
-There is nothing to register. On the next build the tag gets its own page (`/tags/<tag>/`),
-a chip in the tag bar at the top of `/blog/`, and an entry in the search filter.
+| Topic | Title shown | Use for |
+|-------|-------------|---------|
+| `ml` | ML | Machine learning |
+| `math` | Math | Math |
+| `python` | Python | Python, the language and its ecosystem |
+| `cpp` | C++ | C++ |
+| `cp` | CP | Competitive programming |
+| `infra` | Infra | Systems, tooling, Linux, infrastructure, performance |
+| `system-design` | System design | Designing larger systems |
 
-The tag bar on `/blog/` lists tags by how many posts use them (most-used first). It shows the
-top 15, followed by an "All N tags" link to `/tags/` once there are more. Clicking a tag opens
-its page, with the same bar so you can jump between tags.
+Only topics with at least one post appear in the bar. To add a topic, create
+`content/topics/<slug>/_index.md`:
 
-A post with several tags shows up on each of those tag pages (`/tags/ml/`, `/tags/math/`, ...)
-and shows all its tags as chips on its card. On `/search/`, the **Tags** filter lists every tag
-with a post count and works without typing a query. Ticking several tags narrows the results
-to posts that have **all** of them; options that would give zero results are hidden.
+```yaml
+---
+title: "Databases"   # shown in the bar and on cards
+weight: 80           # order in the bar (lower = further left)
+---
+```
+
+Using a topic that has no such file still works, but the build prints a warning, so the list
+stays deliberate. A post can also have no topic (the feature tour doesn't); it then appears
+only under **All** and its tag pages.
+
+Existing tags to reuse: `building-block` (self-contained explainers of a core idea),
+`interview`, `concurrency`, `linux-utilities`, `random-thoughts` (opinions and musings),
+`meta` (posts about this site). Use lowercase and hyphens. New tags need no registration:
+the next build creates `/tags/<tag>/`, a chip on the card, and an entry in the search filter.
+Don't reuse a topic name as a tag.
+
+On `/search/`, the **Topics** and **Tags** filters list every value with a post count and work
+without typing a query. Ticking several values narrows the results to posts that have **all**
+of them; options that would give zero results are hidden.
 
 ## Images, GIFs and video
 
@@ -421,9 +438,9 @@ Large-scale training, numerical methods, ...
 ## The nav bar
 
 Items come from `config/_default/menus.toml`. Lower `weight` = further left. Right now
-it only has **Blog**. Tags, the archive and search still work: they're reached from the blog
-page (tag chips, the search button, Ctrl/Cmd+K) or directly at `/tags/`, `/archives/` and
-`/search/`. Add them back with `[[main]]` blocks if you want them in the bar.
+it only has **Blog**. Topics, tags, the archive and search still work: they're reached from the
+blog page (topic bar, tag chips, the search button, Ctrl/Cmd+K) or directly at `/topics/`,
+`/tags/`, `/archives/` and `/search/`. Add them back with `[[main]]` blocks if you want them in the bar.
 
 **Link to an existing page or an external site**:
 

@@ -1,18 +1,22 @@
 {{- /*
-  Shared card-grid page for /blog/ and /tags/<tag>/.
+  Shared card-grid page for /blog/, /topics/<topic>/ and /tags/<tag>/.
   Context: dict "page" <page> "pages" <collection of posts>
-  The tag bar lists the most-used tags; new tags appear automatically.
+  The first row lists the broad topics (content/topics/, in weight order); a topic page adds a
+  second row with the specific tags used inside that topic. New tags need no configuration.
 */ -}}
 {{- $page := .page }}
 {{- $blog := site.GetPage "/blog" }}
-{{- $maxTags := 15 }}
+{{- $isTopic := and (eq $page.Kind "term") (eq $page.Data.Plural "topics") }}
 <div class="ml-listing" data-pagefind-ignore="all">
   <header class="ml-listing-head">
     {{- if eq $page.Kind "term" }}
     <a class="ml-back" href="{{ $blog.RelPermalink }}">&larr; All posts</a>
     {{- end }}
     <div class="ml-title-row">
-      <h1>{{ if eq $page.Kind "term" }}#{{ end }}{{ $page.Title }}</h1>
+      <div>
+        {{- if eq $page.Kind "term" }}<span class="ml-eyebrow">{{ cond $isTopic "Topic" "Tag" }}</span>{{ end }}
+        <h1>{{ $page.Title }}</h1>
+      </div>
       <a class="ml-search-btn" href="{{ "search/" | relURL }}" data-ml-search>
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         Search{{ if site.Params.manlog.searchModal }} <kbd>Ctrl K</kbd>{{ end }}
@@ -21,18 +25,42 @@
     {{- with $page.Description }}<p class="ml-listing-desc">{{ . | markdownify }}</p>{{ end }}
     {{- with $page.Content }}<div class="ml-listing-desc md-content">{{ . }}</div>{{ end }}
 
-    {{- with site.Taxonomies.tags.ByCount }}
-    <nav class="ml-tagbar" aria-label="Filter by tag">
+    <nav class="ml-tagbar" aria-label="Filter by topic">
       <a class="ml-tagbar-item{{ if eq $page.Path "/blog" }} active{{ end }}" href="{{ $blog.RelPermalink }}">
         {{- "All" }} <span>{{ len $blog.RegularPagesRecursive }}</span></a>
-      {{- range first $maxTags . }}
-      <a class="ml-tagbar-item{{ if eq .Page.Path $page.Path }} active{{ end }}" href="{{ .Page.RelPermalink }}">
-        {{- .Page.LinkTitle }} <span>{{ .Count }}</span></a>
+      {{- with site.GetPage "/topics" }}
+      {{- range .Pages.ByWeight }}
+      {{- if .Pages }}
+      <a class="ml-tagbar-item{{ if eq .Path $page.Path }} active{{ end }}" href="{{ .RelPermalink }}">
+        {{- .LinkTitle }} <span>{{ len .Pages }}</span></a>
       {{- end }}
-      {{- if gt (len .) $maxTags }}
+      {{- end }}
+      {{- end }}
+      {{- with site.Taxonomies.tags }}
       <a class="ml-tagbar-more" href="{{ "tags/" | relURL }}">All {{ len . }} tags &rarr;</a>
       {{- end }}
     </nav>
+
+    {{- if $isTopic }}
+    {{- $s := newScratch }}
+    {{- range $page.Pages }}
+      {{- range .GetTerms "tags" }}
+        {{- $s.SetInMap "pages" .Path . }}
+        {{- $s.Add (printf "n:%s" .Path) 1 }}
+      {{- end }}
+    {{- end }}
+    {{- $rows := slice }}
+    {{- range $path, $p := $s.Get "pages" }}
+      {{- $rows = $rows | append (dict "page" $p "count" ($s.Get (printf "n:%s" $path))) }}
+    {{- end }}
+    {{- with sort $rows "count" "desc" }}
+    <nav class="ml-subtags" aria-label="Tags in {{ $page.Title }}">
+      <span class="ml-subtags-label">Tags in {{ $page.Title }}</span>
+      {{- range . }}
+      <a class="ml-chip" href="{{ .page.RelPermalink }}">{{ .page.LinkTitle }} <span>{{ .count }}</span></a>
+      {{- end }}
+    </nav>
+    {{- end }}
     {{- end }}
   </header>
 

@@ -44,18 +44,19 @@ Clean up `public/`, `resources/`, `.hugo_build.lock` after local builds (all git
 
 ```
 config/_default/
-  hugo.toml      title, baseURL, theme, goldmark (unsafe HTML, passthrough math), pagination 12, taxonomies
+  hugo.toml      title, baseURL, theme, goldmark (unsafe HTML, passthrough math), pagination 12, taxonomies (topics, tags)
   params.toml    PaperMod params at top; [manlog] section (name, tagline, avatar, socials, katexCSS, mermaidJS)
   menus.toml     nav bar ([[main]] blocks); currently only Blog
 content/
   _index.md      landing page text
   search.md      /search/ (layout: pagefind);  archives.md  /archives/ (PaperMod layout)
   blog/_index.md             /blog/ title + description
+  topics/<slug>/_index.md    the fixed topic list: title (display name, e.g. "C++"), weight (bar order), aliases (old /tags/<slug>/)
   blog/<slug>/index.md       one post per folder (page bundle) with its images/demos; flat, no categories
 layouts/                     man'log layer; overrides the theme
   home.html                  landing: avatar or monogram, name, tagline, socials, .Content
-  blog/list.html, term.html  card grids + tag bar via _partials/manlog/listing.html
-  pagefind.html              search page (Pagefind Component UI, faceted tag filter)
+  blog/list.html, term.html  card grids + topic bar via _partials/manlog/listing.html; term.html warns on unlisted topics
+  pagefind.html              search page (Pagefind Component UI, faceted topic + tag filters)
   _markup/render-passthrough.html        $..$/$$..$$ -> KaTeX HTML at build time (transform.ToMath)
   _markup/render-codeblock.html          every other ``` block -> <details class="ml-code"> panel
   _markup/render-codeblock-mermaid.html  ```mermaid -> <pre class="mermaid">
@@ -95,8 +96,13 @@ pagefind.yml                 index only blog/**/index.html; exclude_selectors fo
   are plain resources (used by `{{< embed >}}`), not pages.
 - **Cards**: cover = front matter `thumbnail`, else `cover.*` in the bundle (800x450 webp), else
   a generated tile coloured by a hash of the first tag.
-- **Tag bar**: `listing.html` renders the chip row on `/blog/` and `/tags/<tag>/` from
-  `site.Taxonomies.tags.ByCount` (top 15, then an "All N tags" link), so new tags need no config.
+- **Topics and tags**: two taxonomies. `topics` is a curated list (term pages in
+  `content/topics/`); `tags` is free-form. `listing.html` renders the bar on `/blog/`, topic and
+  tag pages from `(site.GetPage "/topics").Pages.ByWeight` (only topics with posts) plus an
+  "All N tags" link; on a topic page it adds `.ml-subtags`: tags of that topic's posts, counted
+  with a Scratch, sorted by count. Term pages show a "Topic"/"Tag" eyebrow above the title.
+  Cards: topics as `.ml-card-topics` label above the title, tags as `.ml-chip`s at the bottom
+  (`.ml-card-tags`, `margin-top: auto`). Tile hue seeds from the first topic, else first tag.
   Posts are deliberately flat (no category folders): URLs are `/blog/<slug>/` and must stay stable;
   use front matter `aliases` if a slug ever changes.
 - **TOC rail**: `toc-rail.js` builds ticks from h2/h3 with ids; shown on blog posts with at
@@ -119,7 +125,8 @@ pagefind.yml                 index only blog/**/index.html; exclude_selectors fo
   from `.RawContent` (escaped `{{</* cite */>}}` examples are ignored), not from `.Store`, so it
   stays correct across server rebuilds. Unknown id -> `errorf`.
 - **Search**: Pagefind runs after Hugo (CI and locally). Filters come from
-  `<meta data-pagefind-filter="tag[content]" ...>` emitted in head-extras for blog posts.
+  `<meta data-pagefind-filter="topic[content]" ...>` and `tag[content]` emitted in head-extras
+  for blog posts.
   Multi-select within a filter is AND. Ctrl/Cmd+K and any `[data-ml-search]` element open a
   `<pagefind-modal>`; the blog page has a Search button.
 - **Diagrams**: Mermaid for auto-layout; hand-written inline SVG in `<figure class="ml-diagram">`

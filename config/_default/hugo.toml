@@ -14,7 +14,10 @@ capitalizeListTitles = false
 [pagination]
   pagerSize = 12
 
+# topics: a short, fixed list of broad areas (one content/topics/<slug>/_index.md each).
+# tags: free-form, specific labels; any new tag works without configuration.
 [taxonomies]
+  topic = "topics"
   tag = "tags"
 
 # Only Markdown files are pages. Anything else in a post folder (demo.html, images,

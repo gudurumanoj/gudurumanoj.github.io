@@ -36,8 +36,11 @@
 <script defer src="{{ $toc.RelPermalink }}" data-min-headings="{{ $cfg.tocMinHeadings | default 3 }}"></script>
 {{- end }}
 
-{{- /* Search: Pagefind tag filter for posts, and the site-wide Ctrl/Cmd+K dialog. */}}
+{{- /* Search: Pagefind topic and tag filters for posts, and the site-wide Ctrl/Cmd+K dialog. */}}
 {{- if and .IsPage (eq .Type "blog") }}
+{{- range .GetTerms "topics" }}
+<meta data-pagefind-filter="topic[content]" content="{{ .LinkTitle }}">
+{{- end }}
 {{- range .GetTerms "tags" }}
 <meta data-pagefind-filter="tag[content]" content="{{ .LinkTitle }}">
 {{- end }}

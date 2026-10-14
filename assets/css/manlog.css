@@ -160,6 +160,17 @@
 .ml-tagbar-item.active span { color: inherit; opacity: 0.7; }
 .ml-tagbar-more { font-size: 14px; color: var(--ml-muted); margin-left: 4px; }
 .ml-tagbar-more:hover { color: var(--ml-accent-text); }
+.ml-eyebrow {
+  display: block;
+  margin-top: 14px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ml-muted);
+}
+.ml-subtags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 14px; }
+.ml-subtags-label { margin-right: 4px; font-size: 13px; color: var(--ml-muted); }
+.ml-chip span { margin-left: 2px; opacity: 0.65; }
 
 .ml-empty { color: var(--ml-muted); }
 
@@ -221,6 +232,17 @@
 .ml-card-body { display: flex; flex-direction: column; gap: 10px; padding: 18px 20px 20px; flex: 1; }
 
 .ml-card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ml-card-tags { margin-top: auto; padding-top: 2px; }
+.ml-card-topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.ml-card-topics a { position: relative; z-index: 1; color: var(--ml-muted); }
+.ml-card-topics a:hover { color: var(--ml-accent-text); }
 .ml-chip {
   position: relative;
   z-index: 1;

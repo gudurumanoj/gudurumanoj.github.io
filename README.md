@@ -23,17 +23,19 @@ to GitHub Pages by GitHub Actions.
 | URL | What it shows | Rendered by |
 |-----|---------------|-------------|
 | `/` | Personal landing page: name, photo/monogram, social links, intro text | `layouts/home.html` |
-| `/blog/` | All posts as a paginated card grid, a tag bar (most-used tags) and a search button | `layouts/blog/list.html` |
+| `/blog/` | All posts as a paginated card grid, a topic bar and a search button | `layouts/blog/list.html` |
 | `/blog/<post>/` | A post | the theme's single-page template |
-| `/tags/`, `/tags/<tag>/` | Tag list; card grid per tag with the same tag bar | theme (`/tags/`), `layouts/term.html` |
+| `/topics/`, `/topics/<topic>/` | Topic list; card grid per topic, plus a row of the tags used in it | theme (`/topics/`), `layouts/term.html` |
+| `/tags/`, `/tags/<tag>/` | Tag list; card grid per tag | theme (`/tags/`), `layouts/term.html` |
 | `/archives/` | Every post by year | theme (PaperMod `archives` layout) |
-| `/search/` | Full search page with a tag filter | `layouts/pagefind.html` |
+| `/search/` | Full search page with topic and tag filters | `layouts/pagefind.html` |
 
-Only **Blog** is in the nav bar. Tags, the archive and search are reached from the blog page
-(the tag bar, tag chips on cards, the search button, Ctrl/Cmd+K) or by URL.
+Only **Blog** is in the nav bar. Topics, tags, the archive and search are reached from the blog
+page (the topic bar, chips on cards, the search button, Ctrl/Cmd+K) or by URL.
 
-Posts are flat: there are no category folders. Topics come only from tags, which are
-many-per-post and appear in the UI automatically.
+Posts are flat: there are no category folders. They are labelled with two taxonomies:
+`topics`, a short fixed list of broad areas (one `content/topics/<slug>/_index.md` each, which
+sets the display name and order), and `tags`, free-form specific labels that need no setup.
 
 ## Repository layout
 
@@ -46,13 +48,14 @@ many-per-post and appear in the UI automatically.
 ├── content/             # everything you write (Markdown)
 │   ├── _index.md        # landing page text (your intro)
 │   ├── search.md, archives.md
+│   ├── topics/<slug>/_index.md  # the topic list: display name + order (weight)
 │   └── blog/
 │       ├── _index.md            # /blog/ title + description
 │       └── <post>/index.md      # one folder per post ("page bundle"), plus its images/demos
 ├── layouts/             # man'log feature layer (overrides/extends the theme)
 │   ├── home.html                  # landing page
 │   ├── blog/list.html             # card grid for /blog/
-│   ├── term.html                  # card grid for /tags/<tag>/
+│   ├── term.html                  # card grid for /topics/<topic>/ and /tags/<tag>/
 │   ├── pagefind.html              # search page
 │   ├── _markup/
 │   │   ├── render-passthrough.html        # $...$ / $$...$$ -> KaTeX HTML at build time
@@ -66,7 +69,7 @@ many-per-post and appear in the UI automatically.
 │   └── _partials/
 │       ├── manlog/head-extras.html  # the one place our CSS/JS gets added to <head>
 │       ├── manlog/card.html         # one post card
-│       ├── manlog/listing.html      # shared grid page (header, tag bar, grid, pagination)
+│       ├── manlog/listing.html      # shared grid page (header, topic bar, grid, pagination)
 │       ├── manlog/pagination.html
 │       ├── manlog/icon.html         # social icons
 │       ├── manlog/cite-order.html   # citation order, shared by cite + references
@@ -137,8 +140,12 @@ flowchart LR
   site palette, and diagrams re-render if the theme ever switches to dark.
 - **Embeds**: only Markdown counts as content (`[contentTypes]` in `hugo.toml`), so an HTML
   file in a post folder is published as a plain file. `{{< embed >}}` points an iframe at it.
-- **Tag bar**: `listing.html` builds the chip row on `/blog/` and tag pages from
-  `site.Taxonomies.tags.ByCount`, so new tags appear without any configuration.
+- **Topic bar and tags**: `listing.html` builds the chip row on `/blog/`, topic and tag pages
+  from the topic term pages in `content/topics/` (by `weight`, only topics with posts), plus an
+  "All N tags" link. On a topic page it adds a row of the tags used by that topic's posts,
+  most-used first. Cards show topics as a label above the title and tags as chips at the bottom.
+  `term.html` warns at build time about a topic without an `_index.md`. Topic pages carry
+  `aliases` for the old `/tags/<topic>/` URLs.
 - **Cards**: `card.html` uses `thumbnail:` from front matter, else any `cover.*` file in the
   post folder (resized to 800x450 WebP), else a generated tile coloured by the first tag.
 - **Contents rail**: `toc-rail.js` reads the `h2`/`h3` headings of the rendered post, so it does
@@ -157,7 +164,7 @@ flowchart LR
   (`cite-order.html`), so it is stable across rebuilds. An unknown id is a build error.
 - **Search**: after Hugo builds `public/`, Pagefind indexes post pages (`pagefind.yml` limits it
   to `blog/**/index.html`; listing pages opt out with `data-pagefind-ignore`). Tags become
-  the search filter via `<meta data-pagefind-filter>` tags in `head-extras.html`.
+  the search filters via `<meta data-pagefind-filter>` tags (`topic` and `tag`) in `head-extras.html`.
   The index is static files under `/pagefind/`; there is no server.
 - **Favicon**: the wood-log emoji from [Twemoji](https://github.com/jdecked/twemoji)
   (CC-BY 4.0). `static/favicon.svg` plus PNG/ICO fallbacks, referenced by PaperMod's

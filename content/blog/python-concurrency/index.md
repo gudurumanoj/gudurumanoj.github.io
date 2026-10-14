@@ -2,7 +2,8 @@
 title: "Threads, Processes, or Asyncio? Concurrency in Python"
 date: 2026-10-09T11:00:00+05:30
 draft: false
-tags: ["python", "code", "infra", "interview"]
+topics: ["python", "infra"]
+tags: ["concurrency", "interview"]
 summary: "Multithreading, multiprocessing and asyncio in Python: what each one really does, why the GIL decides most of it, a tiny event loop built from scratch, and a simple rule for picking the right one."
 references:
   - id: pep703

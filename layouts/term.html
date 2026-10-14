@@ -1,3 +1,6 @@
 {{- define "main" }}
+{{- if and (eq .Data.Plural "topics") (not .File) }}
+{{- warnf "topic %q is not in the topic list: add content/topics/%s/_index.md, or make it a tag" .Data.Term .Data.Term }}
+{{- end }}
 {{- partial "manlog/listing.html" (dict "page" . "pages" .Pages) }}
 {{- end }}
