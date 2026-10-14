@@ -1,7 +1,7 @@
 ---
 title: "Softmax and Numerical Stability"
 date: 2026-10-05T10:00:00+05:30
-draft: true
+draft: false
 tags: ["ml", "math", "building-block"]
 summary: "Why subtracting the max before exponentiating keeps softmax from overflowing, and the log-sum-exp trick behind it."
 ---
