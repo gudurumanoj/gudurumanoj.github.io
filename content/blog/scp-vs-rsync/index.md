@@ -2,7 +2,7 @@
 title: "scp vs rsync: Copying Files Between Machines"
 date: 2026-10-14T10:00:00+05:30
 draft: false
-tags: ["linux-utilities"]
+tags: ["linux-utilities", "infra"]
 summary: "The scp and rsync commands I actually use, what each tool does under the hood, a point-by-point comparison, and how to run rsync in parallel when one stream isn't fast enough."
 references:
   - id: so-scp-rsync
