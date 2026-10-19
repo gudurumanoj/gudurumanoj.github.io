@@ -1,7 +1,7 @@
 ---
 title: "Transformers, Intuitively: Attention, Q/K/V, FFNs, Positions and GQA"
 date: 2026-10-19T10:00:00+05:30
-draft: true
+draft: false
 topics: ["ml", "math"]
 tags: ["building-block", "attention", "interview"]
 summary: "What queries, keys and values really are, why attention can't see word order without positional embeddings, what the feed-forward layers store, batch vs layer vs weight normalisation, pre-norm vs post-norm, encoders vs decoders, MLM vs next-token prediction, BERT, and grouped-query attention. Intuition first, then the maths, then batched PyTorch with shapes at every step."
