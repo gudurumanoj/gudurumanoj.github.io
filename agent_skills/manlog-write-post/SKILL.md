@@ -77,6 +77,9 @@ becomes a collapsible, height-capped panel with copy / show all automatically. O
 ` ```python {title="bench.py"} ` (header label, e.g. a file name or "Output") and
 ` ```text {collapsed=true} ` (starts closed). Give long scripts and their outputs a `title`.
 
+**Tabbed code** (alternatives in one card, e.g. naive vs efficient): put the fenced blocks
+between `{{< tabs >}}` and `{{< /tabs >}}`; each block is a tab named by its `title`.
+
 **Math** (KaTeX at build time): inline `$x^2$` or `\(x^2\)`; display `$$ ... $$` or `\[ ... \]`
 on their own lines; `aligned`, `cases`, `pmatrix`, `\mathbb` etc. work. Literal dollar: `\$5`.
 

@@ -1,0 +1,16 @@
+{{- /*
+  Groups the fenced code blocks inside it into one card with a tab per block:
+    {{< tabs >}}
+    ```python {title="Naive"}
+    ...
+    ```
+    ```python {title="Efficient"}
+    ...
+    ```
+    {{< /tabs >}}
+  Tab names come from each block's title (else its language). assets/js/code-blocks.js builds the
+  tab bar; without JS the blocks simply stack.
+*/ -}}
+<div class="ml-tabs">
+{{ .Inner | .Page.RenderString (dict "display" "block") }}
+</div>

@@ -182,6 +182,21 @@ pip install torch
 ```
 ````
 
+**Tabbed code** (alternatives in one card, e.g. a naive and an efficient version): wrap the
+blocks in `{{< tabs >}}`. Each block becomes a tab named by its `title` (else its language);
+only one is visible at a time. Without JavaScript the blocks simply stack.
+
+````markdown
+{{< tabs >}}
+```python {title="Naive: loops"}
+...
+```
+```python {title="Vectorised"}
+...
+```
+{{< /tabs >}}
+````
+
 ## Math (LaTeX)
 
 | You write | Result |

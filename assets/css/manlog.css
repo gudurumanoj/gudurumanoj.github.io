@@ -401,6 +401,41 @@
   scrollbar-color: #5c554a transparent;
 }
 .ml-code.is-expanded .ml-code-body { max-height: none; }
+
+/* Tab groups: layouts/_shortcodes/tabs.html; code-blocks.js adds the bar and .is-tabbed */
+.ml-tabs.is-tabbed {
+  margin: 20px 0;
+  border: 1px solid #3d3830;
+  border-radius: var(--ml-radius);
+  background: var(--code-block-bg, #2d2a23);
+  overflow: hidden;
+}
+.ml-tabs.is-tabbed > .ml-code { margin: 0; border: 0; border-radius: 0; }
+.ml-tabs.is-tabbed .ml-code-label { display: none; }
+.ml-tabs > .ml-code[hidden] { display: none; }
+.ml-tabs-bar {
+  display: flex;
+  gap: 2px;
+  padding: 4px 8px 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: #1f1d1a;
+  border-bottom: 1px solid #3d3830;
+}
+.ml-tab {
+  flex: none;
+  white-space: nowrap;
+  padding: 7px 12px 6px;
+  font-family: var(--ml-mono);
+  font-size: 12px;
+  color: #8f8777;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+.ml-tab:hover { color: #e3ab8a; }
+.ml-tab[aria-selected="true"] { color: #f0bd9d; border-bottom-color: #d08b68; }
 .md-content .ml-code .highlight,
 .md-content .ml-code pre {
   margin: 0;

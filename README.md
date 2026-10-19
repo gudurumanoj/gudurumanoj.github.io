@@ -64,6 +64,7 @@ sets the display name and order), and `tags`, free-form specific labels that nee
 │   ├── _shortcodes/
 │   │   ├── embed.html             # {{< embed >}} iframe for HTML demos / Claude artifacts
 │   │   ├── video.html             # {{< video >}} looping clips
+│   │   ├── tabs.html              # {{< tabs >}} groups code blocks into one tabbed card
 │   │   ├── cite.html              # {{< cite "id" >}} -> [1] link to the References list
 │   │   └── references.html        # {{< references >}} numbered list from front matter
 │   └── _partials/
@@ -133,7 +134,9 @@ flowchart LR
   in a `<details class="ml-code">` panel with a header and a height-capped, scrolling body. Fence
   attributes `title` and `collapsed=true` change the label and initial state. It flags the page
   so `head-extras.html` loads `code-blocks.js` (copy and "show all" buttons). PaperMod's own copy
-  buttons are turned off (`ShowCodeCopyButtons = false`).
+  buttons are turned off (`ShowCodeCopyButtons = false`). The `{{< tabs >}}` shortcode wraps
+  several blocks in `.ml-tabs`; `code-blocks.js` adds a tab bar (labels from each block's title)
+  and shows one panel at a time.
 - **Mermaid**: `render-codeblock-mermaid.html` turns ` ```mermaid ` blocks into
   `<pre class="mermaid">` and flags the page; `head-extras.html` then loads
   `mermaid-init.js` (Mermaid from a CDN) only on flagged pages. Light diagrams use the

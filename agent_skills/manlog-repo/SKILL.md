@@ -61,6 +61,7 @@ layouts/                     man'log layer; overrides the theme
   _markup/render-codeblock.html          every other ``` block -> <details class="ml-code"> panel
   _markup/render-codeblock-mermaid.html  ```mermaid -> <pre class="mermaid">
   _shortcodes/embed.html, video.html     iframe embeds (Claude artifacts), looping videos
+  _shortcodes/tabs.html                  {{< tabs >}}: wraps code blocks; code-blocks.js turns them into one tabbed card
   _shortcodes/cite.html, references.html {{< cite "id" >}} -> [n]; numbered list from front matter `references`
   _partials/manlog/cite-order.html       ids in first-citation order, parsed from .RawContent
   _partials/manlog/head-extras.html      the ONLY place CSS/JS is injected into <head>
@@ -71,7 +72,7 @@ assets/css/manlog.css        all man'log styles (--ml-* vars mapped to theme var
 assets/css/extended/palette.css   PaperMod colour overrides (cream/terracotta)
 assets/js/toc-rail.js        right-side hover contents rail on posts
 assets/js/mermaid-init.js    Mermaid loader + light palette themeVariables
-assets/js/code-blocks.js     copy + show-all buttons for code panels
+assets/js/code-blocks.js     copy + show-all buttons for code panels; tab bar for .ml-tabs groups
 assets/js/sidenotes.js       footnotes -> absolutely positioned .ml-sidenote in the right margin (>=1360px)
 archetypes/blog.md           front matter for `hugo new blog/...`
 static/                      favicons (Twemoji 🪵 log), site.webmanifest
