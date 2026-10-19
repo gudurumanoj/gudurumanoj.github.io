@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The SGD noise ball</title>
+<style>
+  :root { --bg:#fdfcf8; --text:#2d2a23; --muted:#7a7266; --accent:#a66b4f; --line:#e6e0d4; --card:#f6f2ea; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:14px 16px; background:var(--bg); color:var(--text); font:13.5px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  .controls { display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px 18px; align-items:end; margin-bottom:10px; }
+  @media (max-width:640px){ .controls{ grid-template-columns:1fr; } .panels{ grid-template-columns:1fr !important; } }
+  .ctl .top { display:flex; justify-content:space-between; }
+  .ctl b { font-variant-numeric:tabular-nums; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  select, button { font:inherit; padding:4px 10px; border-radius:6px; border:1px solid var(--accent); background:var(--bg); color:var(--accent); cursor:pointer; }
+  button:hover { background:var(--accent); color:#fff; }
+  .panels { display:grid; grid-template-columns: 1.3fr 1fr; gap:14px; }
+  canvas { width:100%; display:block; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  h3 { margin:0 0 4px; font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .status { margin-top:10px; padding:9px 12px; border-radius:8px; background:var(--card); border-left:3px solid var(--accent); font-variant-numeric:tabular-nums; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+  .legend span { margin-right:12px; color:var(--muted); font-size:12.5px; }
+  .sw { display:inline-block; width:14px; height:3px; vertical-align:middle; margin-right:4px; }
+</style>
+</head>
+<body>
+<div class="controls">
+  <div class="ctl"><div class="top"><span>Learning rate η</span><b id="etaL"></b></div>
+    <input type="range" id="eta" min="-2.3" max="-0.35" step="0.01" value="-1"></div>
+  <div class="ctl"><div class="top"><span>Batch size B</span><b id="bL"></b></div>
+    <input type="range" id="b" min="0" max="10" step="1" value="3"></div>
+  <div class="ctl"><span>Schedule</span>
+    <select id="sched">
+      <option value="const">constant η</option>
+      <option value="step">drop η ×0.1 halfway</option>
+      <option value="cos">cosine decay to 0</option>
+      <option value="inv">η / (1 + t/50)</option>
+    </select></div>
+</div>
+<div class="row">
+  <button id="play">▶ Run 600 steps</button>
+  <span class="legend"><span><i class="sw" style="background:#a66b4f"></i>200 SGD runs</span><span><i class="sw" style="background:#4f7aa6"></i>full-batch GD</span><span><i class="sw" style="background:#7a7266;border-top:1px dashed #7a7266;height:0"></i>predicted floor (constant η)</span></span>
+</div>
+<div class="panels">
+  <div><h3>Where 200 independent SGD runs are</h3><canvas id="surf"></canvas></div>
+  <div><h3>Average excess loss (log scale)</h3><canvas id="curve"></canvas></div>
+</div>
+<div class="status" id="status"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const A = [1, 4], SIGMA = 2, N = 200, T = 600, XR = 3, YR = 2, START = [2.6, 1.6];
+let rng, P, gd, hist, gdHist, t = 0, timer = null;
+
+function mulberry32(a) { return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function gauss() { let u = 0, v = 0; while (u === 0) u = rng(); v = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+
+const params = () => ({ eta: Math.pow(10, +$("eta").value), B: Math.pow(2, +$("b").value), sched: $("sched").value });
+function etaAt(p, k) {
+  if (p.sched === "step") return k < T / 2 ? p.eta : p.eta * 0.1;
+  if (p.sched === "cos") return 0.5 * p.eta * (1 + Math.cos(Math.PI * k / T));
+  if (p.sched === "inv") return p.eta / (1 + k / 50);
+  return p.eta;
+}
+const loss = (x, y) => 0.5 * (A[0] * x * x + A[1] * y * y);
+const floor = p => A.reduce((s, a) => s + p.eta * SIGMA * SIGMA / (2 * p.B * (2 - p.eta * a)), 0);
+
+function reset() {
+  rng = mulberry32(7); t = 0;
+  P = Array.from({ length: N }, () => START.slice()); gd = START.slice();
+  hist = [loss(...START)]; gdHist = [loss(...START)];
+}
+function step() {
+  const p = params(), e = etaAt(p, t), sd = SIGMA / Math.sqrt(p.B);
+  let s = 0;
+  for (const q of P) {
+    for (let i = 0; i < 2; i++) q[i] -= e * (A[i] * q[i] + sd * gauss());   // noisy gradient: true gradient + N(0, sigma^2/B)
+    s += loss(q[0], q[1]);
+  }
+  for (let i = 0; i < 2; i++) gd[i] -= e * A[i] * gd[i];
+  hist.push(s / N); gdHist.push(loss(...gd)); t++;
+}
+
+function sizeCanvas(c, aspect) {
+  const w = c.clientWidth, h = Math.round(w / aspect), r = window.devicePixelRatio || 1;
+  c.width = w * r; c.height = h * r; c.style.height = h + "px";
+  const ctx = c.getContext("2d"); ctx.setTransform(r, 0, 0, r, 0, 0); return [ctx, w, h];
+}
+
+function draw() {
+  const p = params();
+  $("etaL").textContent = p.eta.toFixed(3); $("bL").textContent = p.B;
+  const [g, W, H] = sizeCanvas($("surf"), XR / YR);
+  const sx = x => (x + XR) / (2 * XR) * W, sy = y => H - (y + YR) / (2 * YR) * H;
+  for (let i = 1; i <= 10; i++) {
+    const lev = 0.03 * Math.pow(1.8, i); g.beginPath();
+    for (let k = 0; k <= 100; k++) { const a = k / 100 * 2 * Math.PI, x = Math.sqrt(2 * lev / A[0]) * Math.cos(a), y = Math.sqrt(2 * lev / A[1]) * Math.sin(a);
+      k ? g.lineTo(sx(x), sy(y)) : g.moveTo(sx(x), sy(y)); }
+    g.strokeStyle = "rgba(122,114,102,.28)"; g.stroke();
+  }
+  g.fillStyle = "rgba(166,107,79,.45)";
+  for (const q of P) { g.beginPath(); g.arc(sx(q[0]), sy(q[1]), 2.3, 0, 7); g.fill(); }
+  g.fillStyle = "#4f7aa6"; g.beginPath(); g.arc(sx(gd[0]), sy(gd[1]), 5, 0, 7); g.fill();
+  g.fillStyle = "#2d2a23"; g.beginPath(); g.arc(sx(0), sy(0), 2.5, 0, 7); g.fill();
+
+  const [h, W2, H2] = sizeCanvas($("curve"), 1.2);
+  const lo = -5, hi = 1, pad = 32;
+  const cx = k => pad + k / T * (W2 - pad - 6), cy = v => 6 + (hi - Math.max(lo, Math.min(hi, v))) / (hi - lo) * (H2 - 26);
+  h.strokeStyle = "#e6e0d4"; h.fillStyle = "#7a7266"; h.font = "10.5px system-ui"; h.textAlign = "right";
+  for (let v = lo; v <= hi; v++) { h.beginPath(); h.moveTo(pad, cy(v)); h.lineTo(W2 - 6, cy(v)); h.stroke(); h.fillText("1e" + v, pad - 3, cy(v) + 4); }
+  h.textAlign = "center"; h.fillText("step", (W2 + pad) / 2, H2 - 4);
+  const line = (arr, col, w) => { h.beginPath(); arr.forEach((v, k) => { const y = cy(Math.log10(Math.max(v, 1e-12))); k ? h.lineTo(cx(k), y) : h.moveTo(cx(k), y); }); h.strokeStyle = col; h.lineWidth = w; h.stroke(); };
+  h.setLineDash([4, 4]); h.beginPath(); h.moveTo(pad, cy(Math.log10(floor(p)))); h.lineTo(W2 - 6, cy(Math.log10(floor(p)))); h.strokeStyle = "#7a7266"; h.lineWidth = 1; h.stroke(); h.setLineDash([]);
+  line(gdHist, "#4f7aa6", 1.5); line(hist, "#a66b4f", 1.8);
+
+  const last = hist[hist.length - 1];
+  $("status").innerHTML = `Step <b>${t}</b>. Average excess loss of the SGD runs: <b>${last.toExponential(2)}</b>. ` +
+    `For a constant η the cloud settles at about <b>${floor(p).toExponential(2)}</b>, which is proportional to <b>η / B = ${(p.eta / p.B).toExponential(1)}</b>. ` +
+    (p.sched === "const" ? "Halve η or double B and the floor halves. Pick a decaying schedule to watch the cloud collapse."
+                         : "The decaying η shrinks the cloud below the constant-η floor.");
+}
+
+function stop() { if (timer) { clearInterval(timer); timer = null; } $("play").textContent = "▶ Run 600 steps"; }
+$("play").onclick = () => {
+  if (timer) return stop();
+  if (t >= T) reset();
+  $("play").textContent = "❚❚ Pause";
+  timer = setInterval(() => { for (let i = 0; i < 4 && t < T; i++) step(); draw(); if (t >= T) stop(); }, 16);
+};
+["eta", "b", "sched"].forEach(id => $(id).oninput = () => { stop(); reset(); for (let i = 0; i < T; i++) step(); draw(); });
+window.addEventListener("resize", draw);
+reset(); for (let i = 0; i < T; i++) step(); draw();
+</script>
+</body>
+</html>

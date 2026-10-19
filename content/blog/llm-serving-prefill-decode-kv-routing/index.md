@@ -1,7 +1,7 @@
 ---
 title: "Serving LLMs: Prefill vs Decode, PagedAttention, RadixAttention and KV-Aware Routing"
 date: 2026-10-19T18:00:00+05:30
-draft: true
+draft: false
 topics: ["infra", "ml"]
 tags: ["inference", "kv-cache", "interview"]
 summary: "Why prefill is compute-bound and decode is memory-bound, what TTFT, ITL, P99 and goodput really measure, how vLLM's PagedAttention and continuous batching beat a plain Hugging Face generate loop, how SGLang's radix tree turns shared prefixes into free work, and how Dynamo, llm-d and Baseten route on prefixes and split prefill from decode across a cluster. With the back-of-envelope maths, tested Python, and the industry numbers."

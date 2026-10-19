@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Underfitting and overfitting</title>
+<style>
+  :root { --bg:#fdfcf8; --text:#2d2a23; --muted:#7a7266; --accent:#a66b4f; --line:#e6e0d4; --card:#f6f2ea; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:14px 16px; background:var(--bg); color:var(--text); font:13.5px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  .controls { display:grid; grid-template-columns: 1fr 1fr 1fr auto; gap:8px 18px; align-items:end; margin-bottom:10px; }
+  @media (max-width:640px){ .controls{ grid-template-columns:1fr; } .panels{ grid-template-columns:1fr !important; } }
+  .ctl .top { display:flex; justify-content:space-between; }
+  .ctl b { font-variant-numeric:tabular-nums; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  button { font:inherit; padding:4px 10px; border-radius:6px; border:1px solid var(--accent); background:var(--bg); color:var(--accent); cursor:pointer; }
+  button:hover { background:var(--accent); color:#fff; }
+  .panels { display:grid; grid-template-columns: 1.2fr 1fr; gap:14px; }
+  canvas { width:100%; display:block; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  h3 { margin:0 0 4px; font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .status { margin-top:10px; padding:9px 12px; border-radius:8px; background:var(--card); border-left:3px solid var(--accent); font-variant-numeric:tabular-nums; }
+  .tag { display:inline-block; padding:1px 8px; border-radius:999px; font-weight:600; font-size:12.5px; color:#fff; }
+  .legend { color:var(--muted); font-size:12px; margin-top:4px; }
+  .sw { display:inline-block; width:14px; height:3px; vertical-align:middle; margin:0 4px 0 10px; }
+</style>
+</head>
+<body>
+<div class="controls">
+  <div class="ctl"><div class="top"><span>Model capacity: polynomial degree</span><b id="degL"></b></div><input type="range" id="deg" min="0" max="15" step="1" value="3"></div>
+  <div class="ctl"><div class="top"><span>L2 penalty λ</span><b id="lamL"></b></div><input type="range" id="lam" min="-10" max="1" step="0.1" value="-10"></div>
+  <div class="ctl"><div class="top"><span>Training points</span><b id="nL"></b></div><input type="range" id="n" min="8" max="80" step="1" value="15"></div>
+  <button id="resample">New sample</button>
+</div>
+<div class="panels">
+  <div><h3>The fit</h3><canvas id="fit"></canvas>
+    <div class="legend"><i class="sw" style="background:#7a7266"></i>true function <i class="sw" style="background:#a66b4f"></i>fitted model ● training points</div></div>
+  <div><h3>Error vs degree (log scale)</h3><canvas id="curve"></canvas>
+    <div class="legend"><i class="sw" style="background:#4f7aa6"></i>train MSE <i class="sw" style="background:#a66b4f"></i>test MSE <i class="sw" style="background:#b8ab8e"></i>noise floor σ²</div></div>
+</div>
+<div class="status" id="status"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const SIG = 0.25, f = x => Math.sin(2 * Math.PI * x);
+let seed = 3, xs, ys, xt, yt;
+
+function mulberry32(a) { return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function sample() {
+  const r = mulberry32(seed), g = () => Math.sqrt(-2 * Math.log(r() + 1e-12)) * Math.cos(2 * Math.PI * r());
+  const n = +$("n").value;
+  xs = Array.from({ length: n }, () => r()); ys = xs.map(x => f(x) + SIG * g());
+  xt = Array.from({ length: 400 }, () => r()); yt = xt.map(x => f(x) + SIG * g());
+}
+function legendre(x, p) {            // Legendre polynomials on [-1, 1]: well conditioned, unlike raw powers
+  const u = 2 * x - 1, P = [1, u];
+  for (let k = 1; k < p; k++) P.push(((2 * k + 1) * u * P[k] - k * P[k - 1]) / (k + 1));
+  return P.slice(0, p + 1);
+}
+function solve(A, b) {               // Gaussian elimination with partial pivoting
+  const n = b.length; A = A.map((r, i) => [...r, b[i]]);
+  for (let c = 0; c < n; c++) {
+    let p = c; for (let r = c + 1; r < n; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+    [A[c], A[p]] = [A[p], A[c]];
+    for (let r = c + 1; r < n; r++) { const m = A[r][c] / A[c][c]; for (let k = c; k <= n; k++) A[r][k] -= m * A[c][k]; }
+  }
+  const x = new Array(n).fill(0);
+  for (let r = n - 1; r >= 0; r--) { let s = A[r][n]; for (let k = r + 1; k < n; k++) s -= A[r][k] * x[k]; x[r] = s / A[r][r]; }
+  return x;
+}
+function fit(p, lam) {                // ridge: (Phi^T Phi + lam I) w = Phi^T y
+  const Phi = xs.map(x => legendre(x, p)), m = p + 1;
+  const A = Array.from({ length: m }, (_, i) => Array.from({ length: m }, (_, j) => Phi.reduce((s, r) => s + r[i] * r[j], 0) + (i === j ? lam + 1e-12 : 0)));
+  const b = Array.from({ length: m }, (_, i) => Phi.reduce((s, r, k) => s + r[i] * ys[k], 0));
+  const w = solve(A, b), pred = x => legendre(x, p).reduce((s, v, i) => s + v * w[i], 0);
+  const mse = (X, Y) => X.reduce((s, x, i) => s + (pred(x) - Y[i]) ** 2, 0) / X.length;
+  return { pred, tr: mse(xs, ys), te: mse(xt, yt) };
+}
+
+function sizeCanvas(c, aspect) {
+  const w = c.clientWidth, h = Math.round(w / aspect), r = window.devicePixelRatio || 1;
+  c.width = w * r; c.height = h * r; c.style.height = h + "px";
+  const ctx = c.getContext("2d"); ctx.setTransform(r, 0, 0, r, 0, 0); return [ctx, w, h];
+}
+
+function draw() {
+  const p = +$("deg").value, lv = +$("lam").value, lam = lv <= -9.95 ? 0 : Math.pow(10, lv);
+  $("degL").textContent = p + "  (" + (p + 1) + " parameters)"; $("nL").textContent = xs.length;
+  $("lamL").textContent = lam === 0 ? "0 (off)" : lam.toExponential(0);
+  const cur = fit(p, lam);
+
+  const [g, W, H] = sizeCanvas($("fit"), 1.45);
+  const sx = x => 8 + x * (W - 16), sy = y => H / 2 - y / 2.2 * (H / 2 - 8);
+  g.strokeStyle = "#e6e0d4"; g.beginPath(); g.moveTo(0, sy(0)); g.lineTo(W, sy(0)); g.stroke();
+  const curve = (fn, col, w, dash) => { g.setLineDash(dash); g.beginPath(); for (let i = 0; i <= 400; i++) { const x = i / 400, y = Math.max(-2.4, Math.min(2.4, fn(x))); i ? g.lineTo(sx(x), sy(y)) : g.moveTo(sx(x), sy(y)); } g.strokeStyle = col; g.lineWidth = w; g.stroke(); g.setLineDash([]); };
+  curve(f, "#7a7266", 1.4, [5, 4]); curve(cur.pred, "#a66b4f", 2.2, []);
+  g.fillStyle = "#4f7aa6"; xs.forEach((x, i) => { g.beginPath(); g.arc(sx(x), sy(ys[i]), 3.6, 0, 7); g.fill(); });
+
+  const [h, W2, H2] = sizeCanvas($("curve"), 1.2);
+  const lo = -3, hi = 1.5, pad = 34, cx = d => pad + d / 15 * (W2 - pad - 10), cy = v => 6 + (hi - Math.max(lo, Math.min(hi, v))) / (hi - lo) * (H2 - 26);
+  h.strokeStyle = "#e6e0d4"; h.fillStyle = "#7a7266"; h.font = "10.5px system-ui"; h.textAlign = "right";
+  for (let v = lo; v <= hi; v++) { h.beginPath(); h.moveTo(pad, cy(v)); h.lineTo(W2 - 10, cy(v)); h.stroke(); h.fillText("1e" + v, pad - 3, cy(v) + 4); }
+  h.textAlign = "center"; for (let d = 0; d <= 15; d += 3) h.fillText(d, cx(d), H2 - 4);
+  const all = Array.from({ length: 16 }, (_, d) => fit(d, lam));
+  h.setLineDash([3, 3]); h.beginPath(); h.moveTo(pad, cy(Math.log10(SIG * SIG))); h.lineTo(W2 - 10, cy(Math.log10(SIG * SIG))); h.strokeStyle = "#b8ab8e"; h.stroke(); h.setLineDash([]);
+  [["tr", "#4f7aa6"], ["te", "#a66b4f"]].forEach(([k, col]) => {
+    h.beginPath(); all.forEach((r, d) => { const y = cy(Math.log10(Math.max(r[k], 1e-12))); d ? h.lineTo(cx(d), y) : h.moveTo(cx(d), y); });
+    h.strokeStyle = col; h.lineWidth = 1.8; h.stroke();
+  });
+  h.strokeStyle = "#2d2a23"; h.setLineDash([2, 3]); h.beginPath(); h.moveTo(cx(p), 6); h.lineTo(cx(p), H2 - 20); h.stroke(); h.setLineDash([]);
+
+  let v, col;
+  if (cur.tr > 0.12) { v = "underfitting"; col = "#4f7aa6"; }
+  else if (cur.te > 2.2 * Math.max(cur.tr, SIG * SIG)) { v = "overfitting"; col = "#a64f4f"; }
+  else { v = "good fit"; col = "#5c8a6a"; }
+  $("status").innerHTML = `<span class="tag" style="background:${col}">${v}</span> &nbsp;train MSE <b>${cur.tr.toFixed(3)}</b>, test MSE <b>${cur.te > 99 ? cur.te.toExponential(1) : cur.te.toFixed(3)}</b>, noise floor σ² = ${(SIG * SIG).toFixed(3)}. ` +
+    (v === "underfitting" ? "Both errors are high and close: the model can't bend enough. More capacity, not regularisation, is the fix."
+      : v === "overfitting" ? "Train error is below the noise floor, so the model is fitting the noise. Raise λ, add points, or lower the degree."
+      : "Train error sits near the noise floor and test error is close to it. That's as good as it gets.");
+}
+$("resample").onclick = () => { seed++; sample(); draw(); };
+$("n").oninput = () => { sample(); draw(); };
+$("deg").oninput = draw; $("lam").oninput = draw;
+window.addEventListener("resize", draw);
+sample(); draw();
+</script>
+</body>
+</html>

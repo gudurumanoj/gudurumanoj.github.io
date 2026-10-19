@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sharp vs flat minima: how η and B choose where SGD ends up</title>
+<style>
+  :root { --bg:#fdfcf8; --text:#2d2a23; --muted:#7a7266; --accent:#a66b4f; --line:#e6e0d4; --card:#f6f2ea; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:14px 16px; background:var(--bg); color:var(--text); font:13.5px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  .controls { display:grid; grid-template-columns:1fr 1fr auto; gap:8px 18px; align-items:end; margin-bottom:10px; }
+  @media (max-width:600px){ .controls{ grid-template-columns:1fr; } }
+  .ctl .top { display:flex; justify-content:space-between; }
+  .ctl b { font-variant-numeric:tabular-nums; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  button { font:inherit; padding:4px 10px; border-radius:6px; border:1px solid var(--accent); background:var(--bg); color:var(--accent); cursor:pointer; }
+  button:hover { background:var(--accent); color:#fff; }
+  canvas { width:100%; display:block; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  .legend { color:var(--muted); font-size:12px; margin:4px 0 0; }
+  .sw { display:inline-block; width:14px; height:3px; vertical-align:middle; margin:0 4px 0 10px; }
+  .stats { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; margin-top:10px; }
+  @media (max-width:600px){ .stats{ grid-template-columns:1fr 1fr; } }
+  .stat { background:var(--card); border-radius:8px; padding:6px 10px; }
+  .stat div { color:var(--muted); font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; }
+  .stat b { font-size:17px; font-variant-numeric:tabular-nums; }
+  .status { margin-top:10px; padding:9px 12px; border-radius:8px; background:var(--card); border-left:3px solid var(--accent); }
+</style>
+</head>
+<body>
+<div class="controls">
+  <div class="ctl"><div class="top"><span>Learning rate η</span><b id="etaL"></b></div><input type="range" id="eta" min="-2.3" max="-0.4" step="0.01" value="-2"></div>
+  <div class="ctl"><div class="top"><span>Batch size B</span><b id="bL"></b></div><input type="range" id="b" min="0" max="10" step="1" value="8"></div>
+  <button id="play">▶ Replay</button>
+</div>
+<canvas id="c"></canvas>
+<div class="legend"><i class="sw" style="background:#2d2a23"></i>training loss <i class="sw" style="background:#a66b4f"></i>test loss (the same surface, shifted a little) ● where 600 SGD runs ended</div>
+<div class="stats">
+  <div class="stat"><div>in sharp basin</div><b id="sSharp"></b></div>
+  <div class="stat"><div>in flat basin</div><b id="sFlat"></b></div>
+  <div class="stat"><div>mean train loss</div><b id="sTr"></b></div>
+  <div class="stat"><div>mean test loss</div><b id="sTe"></b></div>
+</div>
+<div class="status" id="status"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const A1 = 1.15, S1 = 0.25, C1 = -1.5, A2 = 1.0, S2 = 0.9, C2 = 2.0, Q = 0.03, SIG = 4, SHIFT = 0.3;
+const N = 600, T = 3000, XL = -4, XH = 5, CURV_SHARP = A1 / (S1 * S1);
+const L = x => -A1 * Math.exp(-((x - C1) ** 2) / (2 * S1 * S1)) - A2 * Math.exp(-((x - C2) ** 2) / (2 * S2 * S2)) + Q * x * x;
+const dL = x => A1 * (x - C1) / (S1 * S1) * Math.exp(-((x - C1) ** 2) / (2 * S1 * S1)) + A2 * (x - C2) / (S2 * S2) * Math.exp(-((x - C2) ** 2) / (2 * S2 * S2)) + 2 * Q * x;
+const Ltest = x => L(x - SHIFT);
+
+function mulberry32(a) { return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+let rng, xs, t = 0, timer = null;
+const gauss = () => Math.sqrt(-2 * Math.log(rng() + 1e-12)) * Math.cos(2 * Math.PI * rng());
+const params = () => ({ eta: Math.pow(10, +$("eta").value), B: Math.pow(2, +$("b").value) });
+
+function reset() { rng = mulberry32(11); xs = Array.from({ length: N }, () => -3 + 4 * rng()); t = 0; }
+function step(n) {
+  const { eta, B } = params(), sd = SIG / Math.sqrt(B);
+  for (let k = 0; k < n && t < T; k++, t++)
+    for (let i = 0; i < N; i++) xs[i] = Math.max(-6, Math.min(6, xs[i] - eta * (dL(xs[i]) + sd * gauss())));
+}
+
+function sizeCanvas(c, aspect) {
+  const w = c.clientWidth, h = Math.round(w / aspect), r = window.devicePixelRatio || 1;
+  c.width = w * r; c.height = h * r; c.style.height = h + "px";
+  const ctx = c.getContext("2d"); ctx.setTransform(r, 0, 0, r, 0, 0); return [ctx, w, h];
+}
+
+function draw() {
+  const { eta, B } = params();
+  $("etaL").textContent = eta.toFixed(3) + (eta > 2 / CURV_SHARP ? "  > 2/λsharp" : ""); $("bL").textContent = B;
+  const [g, W, H] = sizeCanvas($("c"), 2.4);
+  const histH = 46, sx = x => (x - XL) / (XH - XL) * W, sy = y => 10 + (0.35 - y) / 1.6 * (H - histH - 20);
+  const curve = (fn, col, w, dash) => { g.setLineDash(dash); g.beginPath(); for (let i = 0; i <= 500; i++) { const x = XL + i / 500 * (XH - XL); i ? g.lineTo(sx(x), sy(fn(x))) : g.moveTo(sx(x), sy(fn(x))); } g.strokeStyle = col; g.lineWidth = w; g.stroke(); g.setLineDash([]); };
+  curve(Ltest, "#a66b4f", 1.6, [5, 4]); curve(L, "#2d2a23", 2, []);
+  g.fillStyle = "#7a7266"; g.font = "12px system-ui"; g.textAlign = "center";
+  g.fillText("sharp minimum", sx(C1), sy(L(C1)) + 18); g.fillText("flat minimum", sx(C2), sy(L(C2)) + 18);
+
+  const bins = new Array(90).fill(0);
+  xs.forEach(x => { const b = Math.floor((x - XL) / (XH - XL) * 90); if (b >= 0 && b < 90) bins[b]++; });
+  const mx = Math.max(...bins, 1), base = H - 4;
+  g.fillStyle = "rgba(79,122,166,.55)";
+  bins.forEach((c, i) => { const h = c / mx * (histH - 8); g.fillRect(i / 90 * W + 1, base - h, W / 90 - 2, h); });
+  g.fillStyle = "rgba(79,122,166,.6)";
+  xs.forEach((x, i) => { g.beginPath(); g.arc(sx(x), sy(L(x)) - 3 - (i % 5), 2.2, 0, 7); g.fill(); });
+
+  const sharp = xs.filter(x => Math.abs(x - C1) < 0.6).length / N, flat = xs.filter(x => Math.abs(x - C2) < 1.8).length / N;
+  const tr = xs.reduce((s, x) => s + L(x), 0) / N, te = xs.reduce((s, x) => s + Ltest(x), 0) / N;
+  $("sSharp").textContent = (100 * sharp).toFixed(0) + "%"; $("sFlat").textContent = (100 * flat).toFixed(0) + "%";
+  $("sTr").textContent = tr.toFixed(3); $("sTe").textContent = te.toFixed(3);
+  const temp = eta * SIG * SIG / (2 * B);
+  let msg = `Step ${t} of ${T}. Noise temperature η·σ²/(2B) = <b>${temp.toFixed(3)}</b>. `;
+  if (eta > 2 / CURV_SHARP) msg += `η is above 2/λ = ${(2 / CURV_SHARP).toFixed(3)} for the sharp basin, so runs can't settle at its bottom: they bounce on its walls, and any noise throws them out. `;
+  if (temp < 0.05) msg += "Cold: every run stays in whichever basin it started near. The sharp basin wins on training loss and loses on test loss.";
+  else if (temp > 0.6) msg += "Too hot: runs can't sit still in either basin, and training loss itself suffers (underfitting).";
+  else msg += "Warm: noise kicks runs out of the narrow basin but not the wide one. Training loss is a bit worse, test loss is better.";
+  $("status").innerHTML = msg;
+}
+
+function stop() { if (timer) { clearInterval(timer); timer = null; } $("play").textContent = "▶ Replay"; }
+$("play").onclick = () => {
+  if (timer) return stop();
+  reset(); $("play").textContent = "❚❚ Pause";
+  timer = setInterval(() => { step(15); draw(); if (t >= T) stop(); }, 16);
+};
+["eta", "b"].forEach(id => $(id).oninput = () => { stop(); reset(); step(T); draw(); });
+window.addEventListener("resize", draw);
+reset(); step(T); draw();
+</script>
+</body>
+</html>

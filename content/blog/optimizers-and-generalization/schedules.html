@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learning-rate schedules and the noise floor</title>
+<style>
+  :root { --bg:#fdfcf8; --text:#2d2a23; --muted:#7a7266; --accent:#a66b4f; --line:#e6e0d4; --card:#f6f2ea; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:14px 16px; background:var(--bg); color:var(--text); font:13.5px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  .checks { display:flex; flex-wrap:wrap; gap:6px 14px; margin-bottom:8px; }
+  .checks label { cursor:pointer; user-select:none; white-space:nowrap; }
+  input[type=checkbox] { accent-color:var(--accent); }
+  .sliders { display:grid; grid-template-columns:1fr 1fr; gap:6px 18px; margin-bottom:10px; }
+  @media (max-width:600px){ .sliders{ grid-template-columns:1fr; } }
+  .ctl .top { display:flex; justify-content:space-between; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  canvas { width:100%; display:block; border:1px solid var(--line); border-radius:8px; background:#fff; margin-bottom:8px; }
+  h3 { margin:6px 0 4px; font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  table { border-collapse:collapse; font-variant-numeric:tabular-nums; font-size:12.5px; }
+  td { padding:2px 10px 2px 0; }
+  .sw { display:inline-block; width:14px; height:3px; vertical-align:middle; margin-right:5px; }
+</style>
+</head>
+<body>
+<div class="checks" id="checks"></div>
+<div class="sliders">
+  <div class="ctl"><div class="top"><span>Warmup length</span><b id="wL"></b></div><input type="range" id="w" min="0" max="20" step="1" value="5"></div>
+  <div class="ctl"><div class="top"><span>WSD: final decay phase</span><b id="dL"></b></div><input type="range" id="d" min="5" max="40" step="1" value="15"></div>
+</div>
+<h3>Learning rate η<sub>t</sub> / η<sub>max</sub></h3>
+<canvas id="lr"></canvas>
+<h3>Expected excess loss on a noisy quadratic (log scale)</h3>
+<canvas id="loss"></canvas>
+<table id="tbl"></table>
+
+<script>
+const $ = id => document.getElementById(id);
+const T = 2000, D = 200;
+const curv = Array.from({ length: D }, (_, i) => Math.pow(10, -3 + 3 * i / (D - 1)));   // curvatures 1e-3 .. 1
+
+const SCHED = [
+  { id: "const", name: "constant", color: "#b8ab8e", on: true,  f: (t) => 1 },
+  { id: "step",  name: "step ×0.1 at 50%, 75%", color: "#7a6aa8", on: true, f: (t) => t < 0.5 * T ? 1 : t < 0.75 * T ? 0.1 : 0.01 },
+  { id: "cos",   name: "cosine", color: "#a66b4f", on: true, f: (t) => 0.5 * (1 + Math.cos(Math.PI * t / T)) },
+  { id: "lin",   name: "linear to 0", color: "#5c8a6a", on: false, f: (t) => 1 - t / T },
+  { id: "wcos",  name: "warmup + cosine", color: "#4f7aa6", on: false, f: (t, w) => t < w ? (t + 1) / w : 0.5 * (1 + Math.cos(Math.PI * (t - w) / (T - w))) },
+  { id: "wsd",   name: "warmup–stable–decay", color: "#2d2a23", on: false, f: (t, w, d) => t < w ? (t + 1) / w : t < T - d ? 1 : (T - t) / d },
+  { id: "one",   name: "one-cycle", color: "#b08a3c", on: false, f: (t) => { const p = 0.3 * T; return t < p ? 0.04 + 0.96 * 0.5 * (1 - Math.cos(Math.PI * t / p)) : 0.5 * (1 + Math.cos(Math.PI * (t - p) / (T - p))); } },
+];
+
+function simulate(s, w, d) {
+  // Per direction i: E[theta_i^2] = bias + noise, gradient noise variance = curvature (as in the post's card).
+  const bias = new Float64Array(D).fill(1), noise = new Float64Array(D), out = [];
+  for (let t = 0; t < T; t++) {
+    const e = s.f(t, w, d);
+    let L = 0;
+    for (let i = 0; i < D; i++) {
+      const m = (1 - e * curv[i]) ** 2;
+      bias[i] *= m; noise[i] = m * noise[i] + e * e * curv[i];
+      L += 0.5 * curv[i] * (bias[i] + noise[i]);
+    }
+    if (t % 10 === 0 || t === T - 1) out.push([t, L]);
+  }
+  return out;
+}
+
+function sizeCanvas(c, aspect) {
+  const w = c.clientWidth, h = Math.round(w / aspect), r = window.devicePixelRatio || 1;
+  c.width = w * r; c.height = h * r; c.style.height = h + "px";
+  const ctx = c.getContext("2d"); ctx.setTransform(r, 0, 0, r, 0, 0); return [ctx, w, h];
+}
+function axes(g, W, H, pad, ticks, fmt, cy) {
+  g.strokeStyle = "#e6e0d4"; g.fillStyle = "#7a7266"; g.font = "10.5px system-ui"; g.textAlign = "right";
+  ticks.forEach(v => { g.beginPath(); g.moveTo(pad, cy(v)); g.lineTo(W - 6, cy(v)); g.stroke(); g.fillText(fmt(v), pad - 3, cy(v) + 4); });
+  g.textAlign = "center"; ["0%", "25%", "50%", "75%", "100%"].forEach((s, i) => g.fillText(s, pad + i / 4 * (W - pad - 6), H - 3));
+}
+
+function draw() {
+  const w = Math.max(1, Math.round(+$("w").value / 100 * T)), d = Math.round(+$("d").value / 100 * T);
+  $("wL").textContent = $("w").value + "% of steps"; $("dL").textContent = $("d").value + "% of steps";
+  const pad = 36;
+  const [g, W, H] = sizeCanvas($("lr"), 3.6);
+  const cx = t => pad + t / T * (W - pad - 6), cyL = v => 6 + (1.05 - v) / 1.05 * (H - 22);
+  axes(g, W, H, pad, [0, 0.5, 1], v => v.toFixed(1), cyL);
+  const on = SCHED.filter(s => s.on);
+  on.forEach(s => { g.beginPath(); for (let t = 0; t < T; t += 4) { const y = cyL(s.f(t, w, d)); t ? g.lineTo(cx(t), y) : g.moveTo(cx(t), y); } g.strokeStyle = s.color; g.lineWidth = 2; g.stroke(); });
+
+  const [h, W2, H2] = sizeCanvas($("loss"), 2.6);
+  const lo = -1, hi = 2.2, cyS = v => 6 + (hi - Math.max(lo, Math.min(hi, v))) / (hi - lo) * (H2 - 22);
+  axes(h, W2, H2, pad, [-1, 0, 1, 2], v => "1e" + v, cyS);
+  const rows = [];
+  on.forEach(s => {
+    const res = simulate(s, w, d);
+    h.beginPath(); res.forEach(([t, L], k) => { const y = cyS(Math.log10(L)); k ? h.lineTo(cx(t), y) : h.moveTo(cx(t), y); });
+    h.strokeStyle = s.color; h.lineWidth = 2; h.stroke();
+    rows.push([s, res[res.length - 1][1]]);
+  });
+  rows.sort((a, b) => a[1] - b[1]);
+  $("tbl").innerHTML = "<tr><td><b>Final excess loss</b></td><td></td></tr>" +
+    rows.map(([s, L]) => `<tr><td><i class="sw" style="background:${s.color}"></i>${s.name}</td><td>${L.toFixed(3)}</td></tr>`).join("");
+}
+
+$("checks").innerHTML = SCHED.map(s => `<label><input type="checkbox" data-id="${s.id}" ${s.on ? "checked" : ""}> <i class="sw" style="background:${s.color}"></i>${s.name}</label>`).join("");
+document.querySelectorAll("#checks input").forEach(cb => cb.onchange = () => { SCHED.find(s => s.id === cb.dataset.id).on = cb.checked; draw(); });
+$("w").oninput = draw; $("d").oninput = draw;
+window.addEventListener("resize", draw);
+draw();
+</script>
+</body>
+</html>

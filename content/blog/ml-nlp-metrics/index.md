@@ -1,7 +1,7 @@
 ---
 title: "Metrics, One Flaw at a Time"
 date: 2026-10-19T21:00:00+05:30
-draft: true
+draft: false
 topics: ["ml", "math"]
 tags: ["evaluation", "nlp", "interview"]
 summary: "Accuracy, precision, recall, F1, MCC, ROC-AUC, PR-AUC, calibration, MRR, NDCG, perplexity, exact match, WER, BLEU, SacreBLEU, ROUGE, METEOR, chrF, BERTScore, COMET, pass@k and LLM judges, told as one story: every metric exists because the previous one broke somewhere. Intuition, formula and runnable Python for each."

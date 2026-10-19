@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Why L1 gives exact zeros and L2 doesn't</title>
+<style>
+  :root { --bg:#fdfcf8; --text:#2d2a23; --muted:#7a7266; --accent:#a66b4f; --line:#e6e0d4; --card:#f6f2ea; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:14px 16px; background:var(--bg); color:var(--text); font:13.5px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  .controls { display:grid; grid-template-columns:1fr 1fr; gap:8px 18px; margin-bottom:10px; }
+  @media (max-width:600px){ .controls{ grid-template-columns:1fr; } }
+  .ctl .top { display:flex; justify-content:space-between; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .panels { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  canvas { width:100%; display:block; border:1px solid var(--line); border-radius:8px; background:#fff; cursor:grab; touch-action:none; }
+  h3 { margin:0 0 4px; font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .res { margin-top:4px; font-variant-numeric:tabular-nums; font-size:13px; }
+  .zero { color:#a66b4f; font-weight:700; }
+  .status { margin-top:10px; padding:9px 12px; border-radius:8px; background:var(--card); border-left:3px solid var(--accent); }
+</style>
+</head>
+<body>
+<div class="controls">
+  <div class="ctl"><div class="top"><span>Weight budget (how strong the penalty is: smaller = stronger)</span><b id="tL"></b></div><input type="range" id="t" min="0.3" max="2" step="0.01" value="1"></div>
+  <div class="ctl"><div class="top"><span>Tilt of the loss contours</span><b id="rL"></b></div><input type="range" id="rot" min="0" max="180" step="1" value="25"></div>
+</div>
+<div class="panels">
+  <div><h3>L2: ‖w‖₂ ≤ budget (a circle)</h3><canvas id="c2"></canvas><div class="res" id="r2"></div></div>
+  <div><h3>L1: ‖w‖₁ ≤ budget (a diamond)</h3><canvas id="c1"></canvas><div class="res" id="r1"></div></div>
+</div>
+<div class="status" id="status"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const R = 2.6;
+let ws = [1.7, 0.9];
+
+function lossFn(rot) {
+  const c = Math.cos(rot), s = Math.sin(rot);
+  return (w, o) => { const dx = w[0] - o[0], dy = w[1] - o[1], u = c * dx + s * dy, v = -s * dx + c * dy; return u * u + 0.2 * v * v; };
+}
+function minOnSegment(L, o, a, b) {          // L is convex along a segment, so ternary search is exact
+  let lo = 0, hi = 1;
+  for (let k = 0; k < 60; k++) { const m1 = lo + (hi - lo) / 3, m2 = hi - (hi - lo) / 3;
+    const p = t => [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
+    L(p(m1), o) < L(p(m2), o) ? hi = m2 : lo = m1; }
+  const t = (lo + hi) / 2; return [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
+}
+function solveL1(L, o, t) {
+  if (Math.abs(o[0]) + Math.abs(o[1]) <= t) return o.slice();
+  const V = [[t, 0], [0, t], [-t, 0], [0, -t]];
+  let best = null, bv = Infinity;
+  for (let i = 0; i < 4; i++) { const p = minOnSegment(L, o, V[i], V[(i + 1) % 4]), v = L(p, o); if (v < bv) { bv = v; best = p; } }
+  return best.map(x => Math.abs(x) < 1e-9 ? 0 : x);
+}
+function solveL2(L, o, t) {
+  if (Math.hypot(o[0], o[1]) <= t) return o.slice();
+  let best = 0, bv = Infinity;
+  for (let k = 0; k < 720; k++) { const a = k / 720 * 2 * Math.PI, v = L([t * Math.cos(a), t * Math.sin(a)], o); if (v < bv) { bv = v; best = a; } }
+  let lo = best - 0.01, hi = best + 0.01;
+  for (let k = 0; k < 60; k++) { const m1 = lo + (hi - lo) / 3, m2 = hi - (hi - lo) / 3;
+    L([t * Math.cos(m1), t * Math.sin(m1)], o) < L([t * Math.cos(m2), t * Math.sin(m2)], o) ? hi = m2 : lo = m1; }
+  const a = (lo + hi) / 2; return [t * Math.cos(a), t * Math.sin(a)];
+}
+
+function sizeCanvas(c) {
+  const w = c.clientWidth, r = window.devicePixelRatio || 1;
+  c.width = w * r; c.height = w * r; c.style.height = w + "px";
+  const ctx = c.getContext("2d"); ctx.setTransform(r, 0, 0, r, 0, 0); return [ctx, w];
+}
+
+function panel(id, kind, t, rot, L) {
+  const [g, W] = sizeCanvas($(id)), s = x => (x + R) / (2 * R) * W, sy = y => (R - y) / (2 * R) * W;
+  g.strokeStyle = "#e6e0d4"; g.beginPath(); g.moveTo(0, sy(0)); g.lineTo(W, sy(0)); g.moveTo(s(0), 0); g.lineTo(s(0), W); g.stroke();
+  g.fillStyle = "#7a7266"; g.font = "11px system-ui"; g.fillText("w₁", W - 18, sy(0) - 5); g.fillText("w₂", s(0) + 5, 12);
+  g.beginPath();
+  if (kind === 2) g.arc(s(0), sy(0), t / (2 * R) * W, 0, 7);
+  else { g.moveTo(s(t), sy(0)); g.lineTo(s(0), sy(t)); g.lineTo(s(-t), sy(0)); g.lineTo(s(0), sy(-t)); g.closePath(); }
+  g.fillStyle = "rgba(79,122,166,.13)"; g.fill(); g.strokeStyle = "#4f7aa6"; g.lineWidth = 1.5; g.stroke();
+  const sol = kind === 2 ? solveL2(L, ws, t) : solveL1(L, ws, t), c0 = L(sol, ws);
+  const ell = (lev, col, w) => { g.beginPath(); const c = Math.cos(rot), sn = Math.sin(rot);
+    for (let k = 0; k <= 120; k++) { const a = k / 120 * 2 * Math.PI, u = Math.sqrt(lev) * Math.cos(a), v = Math.sqrt(lev / 0.2) * Math.sin(a);
+      const x = ws[0] + c * u - sn * v, y = ws[1] + sn * u + c * v; k ? g.lineTo(s(x), sy(y)) : g.moveTo(s(x), sy(y)); }
+    g.strokeStyle = col; g.lineWidth = w; g.stroke(); };
+  [0.05, 0.2, 0.5, 1, 1.8, 3].forEach(l => ell(l, "rgba(122,114,102,.3)", 1));
+  if (c0 > 1e-9) ell(c0, "#a66b4f", 2);
+  g.fillStyle = "#2d2a23"; g.beginPath(); g.arc(s(ws[0]), sy(ws[1]), 5, 0, 7); g.fill();
+  g.fillText("best fit (drag me)", s(ws[0]) + 8, sy(ws[1]) - 7);
+  g.fillStyle = "#a66b4f"; g.beginPath(); g.arc(s(sol[0]), sy(sol[1]), 5.5, 0, 7); g.fill();
+  const fmt = v => v === 0 ? `<span class="zero">0 exactly</span>` : v.toFixed(3);
+  $(kind === 2 ? "r2" : "r1").innerHTML = `solution: w₁ = ${fmt(sol[0])}, w₂ = ${fmt(sol[1])}`;
+}
+
+function sparsityRate(t, rot, L) {
+  let out = 0, sparse1 = 0, sparse2 = 0;
+  for (let i = 0; i < 40; i++) for (let j = 0; j < 40; j++) {
+    const o = [-R + (i + 0.5) / 40 * 2 * R, -R + (j + 0.5) / 40 * 2 * R];
+    if (Math.abs(o[0]) + Math.abs(o[1]) <= t) continue;
+    out++;
+    const s1 = solveL1(L, o, t); if (s1[0] === 0 || s1[1] === 0) sparse1++;
+    const s2 = solveL2(L, o, t); if (Math.abs(s2[0]) < 1e-6 || Math.abs(s2[1]) < 1e-6) sparse2++;
+  }
+  return [sparse1 / out, sparse2 / out];
+}
+
+let cacheKey = "", cache = null;
+function draw() {
+  const t = +$("t").value, rot = +$("rot").value * Math.PI / 180, L = lossFn(rot);
+  $("tL").textContent = t.toFixed(2); $("rL").textContent = $("rot").value + "°";
+  panel("c2", 2, t, rot, L); panel("c1", 1, t, rot, L);
+  const key = t + "|" + rot; if (key !== cacheKey) { cache = sparsityRate(t, rot, L); cacheKey = key; }
+  $("status").innerHTML = `The solution is where the smallest loss contour (orange) first touches the allowed region. ` +
+    `The diamond's corners stick out along the axes, so contours tend to touch a corner first, where one weight is exactly zero. ` +
+    `If you place the best fit at random in this square, L1 lands on an axis <b>${(100 * cache[0]).toFixed(0)}%</b> of the time; L2 does <b>${(100 * cache[1]).toFixed(0)}%</b> of the time.`;
+}
+
+let dragging = false;
+function moveTo(e, c) {
+  const r = c.getBoundingClientRect();
+  ws = [-R + (e.clientX - r.left) / r.width * 2 * R, R - (e.clientY - r.top) / r.height * 2 * R]; draw();
+}
+["c1", "c2"].forEach(id => {
+  const c = $(id);
+  c.addEventListener("pointerdown", e => { dragging = true; c.setPointerCapture(e.pointerId); moveTo(e, c); });
+  c.addEventListener("pointermove", e => { if (dragging) moveTo(e, c); });
+  c.addEventListener("pointerup", () => dragging = false);
+});
+$("t").oninput = draw; $("rot").oninput = draw;
+window.addEventListener("resize", draw);
+draw();
+</script>
+</body>
+</html>

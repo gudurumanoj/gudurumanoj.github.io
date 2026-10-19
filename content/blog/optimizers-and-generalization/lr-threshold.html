@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gradient descent on a ravine: the learning-rate threshold</title>
+<style>
+  :root { --bg:#fdfcf8; --text:#2d2a23; --muted:#7a7266; --accent:#a66b4f; --line:#e6e0d4; --card:#f6f2ea; --blue:#4f7aa6; --green:#5c8a6a; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:14px 16px; background:var(--bg); color:var(--text); font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  .controls { display:grid; grid-template-columns: 1fr 1fr; gap:8px 22px; margin-bottom:10px; }
+  @media (max-width:620px){ .controls{ grid-template-columns:1fr; } .panels{ grid-template-columns:1fr !important; } }
+  .ctl { display:flex; flex-direction:column; gap:2px; }
+  .ctl .top { display:flex; justify-content:space-between; }
+  .ctl b { font-variant-numeric: tabular-nums; }
+  input[type=range]{ width:100%; accent-color:var(--accent); }
+  .panels { display:grid; grid-template-columns: 1.45fr 1fr; gap:14px; }
+  h3 { margin:0 0 4px; font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  canvas { width:100%; display:block; border:1px solid var(--line); border-radius:8px; background:#fff; cursor:crosshair; }
+  .status { margin-top:10px; padding:9px 12px; border-radius:8px; background:var(--card); border-left:3px solid var(--accent); }
+  .tag { display:inline-block; padding:1px 8px; border-radius:999px; font-weight:600; font-size:12.5px; color:#fff; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  button { font:inherit; padding:3px 10px; border-radius:6px; cursor:pointer; border:1px solid var(--accent); background:var(--bg); color:var(--accent); }
+  button:hover { background:var(--accent); color:#fff; }
+  .hint { color:var(--muted); font-size:12.5px; }
+</style>
+</head>
+<body>
+<div class="controls">
+  <div class="ctl">
+    <div class="top"><span>Learning rate η</span><b id="etaLbl"></b></div>
+    <input type="range" id="eta" min="-3" max="-0.3" step="0.005" value="-1.3">
+  </div>
+  <div class="ctl">
+    <div class="top"><span>Steepness of the ravine wall (λ<sub>max</sub>)</span><b id="kLbl"></b></div>
+    <input type="range" id="kappa" min="1" max="40" step="0.5" value="10">
+  </div>
+</div>
+<div class="panels">
+  <div>
+    <h3>Path on the loss surface</h3>
+    <canvas id="surf"></canvas>
+  </div>
+  <div>
+    <h3>Loss per step (log scale)</h3>
+    <canvas id="curve"></canvas>
+  </div>
+</div>
+<div class="status" id="status"></div>
+<div class="row" style="margin-top:6px">
+  <span class="hint">Click the surface to start from a different point. The floor of the valley is flat (curvature 1); the walls have curvature λ<sub>max</sub>.</span>
+  <button id="edge" style="margin-left:auto">Set η just below 2/λ<sub>max</sub></button>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const STEPS = 60, XR = 3.2, YR = 1.6;
+let start = [-2.8, 1.2];
+
+function sizeCanvas(c, aspect) {
+  const w = c.clientWidth, h = Math.round(w / aspect), r = window.devicePixelRatio || 1;
+  c.width = w * r; c.height = h * r; c.style.height = h + "px";
+  const ctx = c.getContext("2d"); ctx.setTransform(r, 0, 0, r, 0, 0);
+  return [ctx, w, h];
+}
+
+function run(eta, k) {
+  let [x, y] = start; const pts = [[x, y]], losses = [0.5 * (x * x + k * y * y)];
+  for (let t = 0; t < STEPS; t++) {
+    x -= eta * x; y -= eta * k * y;           // gradient of 0.5*(x^2 + k*y^2) is (x, k*y)
+    pts.push([x, y]); losses.push(0.5 * (x * x + k * y * y));
+    if (!isFinite(losses[losses.length - 1]) || Math.abs(y) > 1e6) break;
+  }
+  return [pts, losses];
+}
+
+function regime(eta, k) {
+  const p = eta * k;
+  if (p < 1) return ["smooth", "#5c8a6a"];
+  if (p < 2) return ["oscillating", "#b08a3c"];
+  return ["diverging", "#a64f4f"];
+}
+
+function draw() {
+  const eta = Math.pow(10, +$("eta").value), k = +$("kappa").value;
+  $("etaLbl").textContent = eta.toFixed(eta < 0.01 ? 4 : 3);
+  $("kLbl").textContent = k.toFixed(1) + "   (2/λmax = " + (2 / k).toFixed(3) + ")";
+  const [pts, losses] = run(eta, k);
+
+  // ---- surface ----
+  const c = $("surf"); const [g, W, H] = sizeCanvas(c, XR / YR);
+  const sx = x => (x + XR) / (2 * XR) * W, sy = y => H - (y + YR) / (2 * YR) * H;
+  g.clearRect(0, 0, W, H);
+  for (let i = 1; i <= 14; i++) {
+    const lev = 0.02 * Math.pow(1.7, i);
+    g.beginPath();
+    for (let t = 0; t <= 120; t++) {
+      const a = t / 120 * 2 * Math.PI;
+      const x = Math.sqrt(2 * lev) * Math.cos(a), y = Math.sqrt(2 * lev / k) * Math.sin(a);
+      t ? g.lineTo(sx(x), sy(y)) : g.moveTo(sx(x), sy(y));
+    }
+    g.strokeStyle = "rgba(122,114,102," + (0.45 - i * 0.02) + ")"; g.lineWidth = 1; g.stroke();
+  }
+  g.fillStyle = "#2d2a23"; g.beginPath(); g.arc(sx(0), sy(0), 3.5, 0, 7); g.fill();
+  g.beginPath();
+  pts.forEach(([x, y], i) => {
+    const X = sx(Math.max(-50, Math.min(50, x))), Y = sy(Math.max(-50, Math.min(50, y)));
+    i ? g.lineTo(X, Y) : g.moveTo(X, Y);
+  });
+  g.strokeStyle = "#a66b4f"; g.lineWidth = 1.6; g.stroke();
+  pts.forEach(([x, y], i) => {
+    if (Math.abs(x) > XR * 1.2 || Math.abs(y) > YR * 1.2) return;
+    g.fillStyle = i ? "#a66b4f" : "#4f7aa6";
+    g.beginPath(); g.arc(sx(x), sy(y), i ? 2.4 : 4.5, 0, 7); g.fill();
+  });
+
+  // ---- loss curve ----
+  const c2 = $("curve"); const [h, W2, H2] = sizeCanvas(c2, 1.25);
+  h.clearRect(0, 0, W2, H2);
+  const lo = -8, hi = 4, pad = 30;
+  const cx = t => pad + t / STEPS * (W2 - pad - 8), cy = v => 8 + (hi - Math.max(lo, Math.min(hi, v))) / (hi - lo) * (H2 - 30);
+  h.strokeStyle = "#e6e0d4"; h.fillStyle = "#7a7266"; h.font = "11px system-ui"; h.textAlign = "right";
+  for (let v = lo; v <= hi; v += 2) {
+    h.beginPath(); h.moveTo(pad, cy(v)); h.lineTo(W2 - 8, cy(v)); h.stroke();
+    h.fillText("1e" + v, pad - 3, cy(v) + 4);
+  }
+  h.textAlign = "center"; h.fillText("step", (W2 + pad) / 2, H2 - 6);
+  h.beginPath();
+  losses.forEach((L, t) => { const v = Math.log10(Math.max(L, 1e-12)); t ? h.lineTo(cx(t), cy(v)) : h.moveTo(cx(t), cy(v)); });
+  h.strokeStyle = "#a66b4f"; h.lineWidth = 1.8; h.stroke();
+
+  // ---- status ----
+  const [name, col] = regime(eta, k);
+  const fSteep = Math.abs(1 - eta * k), fFlat = Math.abs(1 - eta);
+  const n100 = fFlat < 1 ? Math.ceil(Math.log(100) / -Math.log(fFlat)) : Infinity;
+  $("status").innerHTML =
+    `<span class="tag" style="background:${col}">${name}</span> &nbsp;η·λ<sub>max</sub> = <b>${(eta * k).toFixed(2)}</b>. ` +
+    `Each step multiplies the error along the steep wall by |1 − ηλ<sub>max</sub>| = <b>${fSteep.toFixed(3)}</b>` +
+    ` and along the flat floor by |1 − η| = <b>${fFlat.toFixed(3)}</b>. ` +
+    (name === "diverging" ? "The steep direction grows every step, so the whole run blows up."
+      : `The floor needs about <b>${n100}</b> steps to cut its error 100×; that, not the wall, is what makes ravines slow.`);
+}
+
+$("eta").oninput = draw; $("kappa").oninput = draw;
+$("edge").onclick = () => { $("eta").value = Math.log10(1.95 / +$("kappa").value); draw(); };
+$("surf").onclick = e => {
+  const r = e.target.getBoundingClientRect();
+  start = [((e.clientX - r.left) / r.width * 2 - 1) * XR, -((e.clientY - r.top) / r.height * 2 - 1) * YR];
+  draw();
+};
+window.addEventListener("resize", draw);
+draw();
+</script>
+</body>
+</html>

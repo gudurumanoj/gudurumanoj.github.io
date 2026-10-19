@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Optimizer playground</title>
+<style>
+  :root { --bg:#fdfcf8; --text:#2d2a23; --muted:#7a7266; --accent:#a66b4f; --line:#e6e0d4; --card:#f6f2ea; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:14px 16px; background:var(--bg); color:var(--text); font:13.5px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  .bar { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; margin-bottom:10px; }
+  select, button { font:inherit; padding:4px 10px; border-radius:6px; border:1px solid var(--accent); background:var(--bg); color:var(--accent); cursor:pointer; }
+  button:hover { background:var(--accent); color:#fff; }
+  .grid { display:grid; grid-template-columns: 1.35fr 1fr; gap:14px; }
+  @media (max-width:640px){ .grid{ grid-template-columns:1fr; } }
+  canvas { width:100%; display:block; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  #surf { cursor:crosshair; }
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  td { padding:3px 2px; vertical-align:middle; }
+  td.n { white-space:nowrap; }
+  td.r { text-align:right; color:var(--muted); font-size:12px; white-space:nowrap; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; vertical-align:-1px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  input[type=checkbox] { accent-color:var(--accent); }
+  h3 { margin:10px 0 4px; font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .note { margin-top:8px; padding:8px 11px; border-radius:8px; background:var(--card); border-left:3px solid var(--accent); font-size:13px; }
+  .lr { font-size:11.5px; color:var(--muted); }
+</style>
+</head>
+<body>
+<div class="bar">
+  <label>Surface
+    <select id="surface">
+      <option value="ravine">Ravine (axis-aligned)</option>
+      <option value="tilted">Ravine (tilted 45°)</option>
+      <option value="banana">Banana (Rosenbrock)</option>
+      <option value="saddle">Saddle point</option>
+    </select>
+  </label>
+  <button id="play">▶ Play</button>
+  <button id="stepBtn">+10 steps</button>
+  <button id="reset">Reset</button>
+  <span id="stepLbl" style="color:var(--muted)"></span>
+</div>
+<div class="grid">
+  <div>
+    <canvas id="surf"></canvas>
+    <div class="note" id="note"></div>
+  </div>
+  <div>
+    <table id="opts"></table>
+    <h3>Distance to the minimum loss (log scale)</h3>
+    <canvas id="curve"></canvas>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const MAX_STEPS = 400;
+
+const S = {
+  ravine: {
+    xr: [-3, 3], yr: [-2, 2], start: [-2.7, 1.6], fmin: 0,
+    f: (x, y) => 0.02 * x * x + 2 * y * y,
+    g: (x, y) => [0.04 * x, 4 * y],
+    lr: { gd: 0.45, mom: 0.15, nag: 0.15, rms: 0.1, adam: 0.1 },
+    note: "Curvature 4 across the valley, 0.04 along it (condition number 100). GD can't raise η past 2/4 = 0.5 without the walls blowing up, so it crawls along the floor. Momentum builds speed along the floor; RMSProp and Adam rescale each axis so both move at about η per step."
+  },
+  tilted: {
+    xr: [-3, 3], yr: [-2, 2], start: [-2.4, 0.4], fmin: 0,
+    f: (x, y) => { const u = (x + y) / Math.SQRT2, v = (y - x) / Math.SQRT2; return 0.02 * u * u + 2 * v * v; },
+    g: (x, y) => { const u = (x + y) / Math.SQRT2, v = (y - x) / Math.SQRT2, gu = 0.04 * u, gv = 4 * v;
+                   return [(gu - gv) / Math.SQRT2, (gu + gv) / Math.SQRT2]; },
+    lr: { gd: 0.45, mom: 0.15, nag: 0.15, rms: 0.1, adam: 0.1 },
+    note: "Same ravine, rotated 45°. Now the steep and flat directions are diagonal, so per-coordinate scaling (RMSProp, Adam) can no longer separate them: each coordinate sees a mix of steep and flat. Momentum doesn't care about rotation. Adam's preconditioner is diagonal, and this is its blind spot."
+  },
+  banana: {
+    xr: [-2, 2], yr: [-1, 3], start: [-1.5, 2.6], fmin: 0,
+    f: (x, y) => (1 - x) ** 2 + 10 * (y - x * x) ** 2,
+    g: (x, y) => [-2 * (1 - x) - 40 * x * (y - x * x), 20 * (y - x * x)],
+    lr: { gd: 0.01, mom: 0.003, nag: 0.003, rms: 0.01, adam: 0.15 },
+    note: "A curved valley with the minimum at (1, 1). The steep direction keeps changing, so a fixed step size is too big in one place and too small in another. Everyone finds the valley fast; following its bend is the hard part. RMSProp, with no momentum and a constant η, keeps bouncing across the valley; raise GD's η much and it diverges."
+  },
+  saddle: {
+    xr: [-3, 3], yr: [-2, 2], start: [1.2, 0.0005], fmin: -0.25,
+    f: (x, y) => 0.5 * x * x + 0.25 * y ** 4 - 0.5 * y * y,
+    g: (x, y) => [x, y ** 3 - y],
+    lr: { gd: 0.1, mom: 0.05, nag: 0.05, rms: 0.05, adam: 0.2 },
+    note: "Start almost exactly on the ridge of a saddle at (0, 0); the real minima are at (0, ±1). The gradient pointing off the ridge is tiny, so GD sits on a long plateau. Adam divides by the gradient's size, so even a tiny push becomes a full-size step. Momentum accumulates the small push."
+  },
+};
+
+const OPTS = [
+  { id: "gd",   name: "GD",       color: "#7a7266", on: true },
+  { id: "mom",  name: "Momentum", color: "#4f7aa6", on: true },
+  { id: "nag",  name: "Nesterov", color: "#7a6aa8", on: false },
+  { id: "rms",  name: "RMSProp",  color: "#5c8a6a", on: false },
+  { id: "adam", name: "Adam",     color: "#a66b4f", on: true },
+];
+
+let surf = S.ravine, start = surf.start.slice(), runs = {}, t = 0, timer = null;
+
+function makeState(o) { return { p: start.slice(), v: [0, 0], m: [0, 0], s: [0, 0], k: 0, path: [start.slice()], hist: [] }; }
+
+function stepOpt(o, st) {
+  const lr = o.lr, [x, y] = st.p, g = surf.g(x, y), b = 0.9, b2 = 0.999, eps = 1e-8;
+  st.k++;
+  for (let i = 0; i < 2; i++) {
+    let d;
+    if (o.id === "gd") d = g[i];
+    else if (o.id === "mom") { st.v[i] = b * st.v[i] + g[i]; d = st.v[i]; }
+    else if (o.id === "nag") { st.v[i] = b * st.v[i] + g[i]; d = g[i] + b * st.v[i]; }
+    else if (o.id === "rms") { st.s[i] = 0.9 * st.s[i] + 0.1 * g[i] * g[i]; d = g[i] / (Math.sqrt(st.s[i]) + eps); }
+    else { st.m[i] = b * st.m[i] + (1 - b) * g[i]; st.s[i] = b2 * st.s[i] + (1 - b2) * g[i] * g[i];
+           d = (st.m[i] / (1 - b ** st.k)) / (Math.sqrt(st.s[i] / (1 - b2 ** st.k)) + eps); }
+    st.p[i] -= lr * d;
+  }
+  if (!isFinite(st.p[0]) || Math.abs(st.p[0]) > 1e4 || Math.abs(st.p[1]) > 1e4) st.dead = true;
+  st.path.push(st.p.slice());
+  st.hist.push(surf.f(st.p[0], st.p[1]) - surf.fmin);
+}
+
+function reset() {
+  runs = {}; t = 0;
+  OPTS.forEach(o => { runs[o.id] = makeState(o); runs[o.id].hist.push(surf.f(start[0], start[1]) - surf.fmin); });
+  drawAll(true);
+}
+
+function advance(n) {
+  for (let i = 0; i < n && t < MAX_STEPS; i++, t++)
+    OPTS.forEach(o => { const st = runs[o.id]; if (!st.dead) stepOpt(o, st); });
+  drawAll(false);
+}
+
+function sizeCanvas(c, aspect) {
+  const w = c.clientWidth, h = Math.round(w / aspect), r = window.devicePixelRatio || 1;
+  if (c.width !== w * r || c.height !== Math.round(h * r)) { c.width = w * r; c.height = Math.round(h * r); c.style.height = h + "px"; }
+  const ctx = c.getContext("2d"); ctx.setTransform(r, 0, 0, r, 0, 0); return [ctx, w, h];
+}
+
+let bg = null, bgKey = "";
+function background(W, H) {
+  const key = $("surface").value + W + "x" + H;
+  if (bgKey === key) return bg;
+  const r = window.devicePixelRatio || 1, w = Math.round(W * r), h = Math.round(H * r);
+  const off = document.createElement("canvas"); off.width = w; off.height = h;
+  const ctx = off.getContext("2d"), img = ctx.createImageData(w, h);
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+    const x = surf.xr[0] + i / w * (surf.xr[1] - surf.xr[0]), y = surf.yr[1] - j / h * (surf.yr[1] - surf.yr[0]);
+    const lv = Math.log(surf.f(x, y) - surf.fmin + 0.02) * 2.2, band = lv - Math.floor(lv);
+    const depth = Math.max(0, Math.min(1, (lv + 9) / 18));
+    const edge = band < 0.06 ? 0.13 : 0;
+    const k = (j * w + i) * 4;
+    img.data[k]     = 253 - depth * 22 - edge * 120;
+    img.data[k + 1] = 252 - depth * 30 - edge * 120;
+    img.data[k + 2] = 248 - depth * 40 - edge * 110;
+    img.data[k + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0); bg = off; bgKey = key; return bg;
+}
+
+function drawAll(rebuildTable) {
+  const c = $("surf"), asp = (surf.xr[1] - surf.xr[0]) / (surf.yr[1] - surf.yr[0]);
+  const [g, W, H] = sizeCanvas(c, asp);
+  const sx = x => (x - surf.xr[0]) / (surf.xr[1] - surf.xr[0]) * W, sy = y => (surf.yr[1] - y) / (surf.yr[1] - surf.yr[0]) * H;
+  g.drawImage(background(W, H), 0, 0, W, H);
+  OPTS.forEach(o => {
+    if (!o.on) return; const st = runs[o.id];
+    g.beginPath();
+    st.path.forEach(([x, y], i) => { const X = sx(Math.max(-1e3, Math.min(1e3, x))), Y = sy(Math.max(-1e3, Math.min(1e3, y))); i ? g.lineTo(X, Y) : g.moveTo(X, Y); });
+    g.strokeStyle = o.color; g.lineWidth = 1.8; g.stroke();
+    const [x, y] = st.path[st.path.length - 1];
+    g.fillStyle = o.color; g.beginPath(); g.arc(sx(x), sy(y), 4.5, 0, 7); g.fill();
+  });
+  g.fillStyle = "#2d2a23"; g.beginPath(); g.arc(sx(start[0]), sy(start[1]), 3, 0, 7); g.fill();
+
+  // table
+  const tb = $("opts");
+  if (rebuildTable || !tb.rows.length) {
+    tb.innerHTML = "";
+    OPTS.forEach(o => {
+      const tr = tb.insertRow();
+      tr.innerHTML = `<td class="n"><label><input type="checkbox" ${o.on ? "checked" : ""} data-id="${o.id}"> <span class="dot" style="background:${o.color}"></span>${o.name}</label></td>
+        <td style="width:45%"><input type="range" min="-3.5" max="0" step="0.01" value="${Math.log10(o.lr)}" data-lr="${o.id}"><div class="lr" id="lr-${o.id}"></div></td>
+        <td class="r" id="res-${o.id}"></td>`;
+    });
+    tb.querySelectorAll("input[type=checkbox]").forEach(cb => cb.onchange = () => { OPTS.find(o => o.id === cb.dataset.id).on = cb.checked; drawAll(false); });
+    tb.querySelectorAll("input[type=range]").forEach(r => r.oninput = () => { OPTS.find(o => o.id === r.dataset.lr).lr = Math.pow(10, +r.value); reset(); });
+  }
+  OPTS.forEach(o => {
+    $("lr-" + o.id).textContent = "η = " + o.lr.toPrecision(2);
+    const st = runs[o.id], last = st.hist[st.hist.length - 1];
+    const hit = st.hist.findIndex(v => v < 1e-3);
+    $("res-" + o.id).textContent = st.dead ? "diverged" : hit >= 0 ? `hit 1e-3 at step ${hit}` : `gap ${last.toExponential(1)}`;
+  });
+  $("stepLbl").textContent = `step ${t} / ${MAX_STEPS}`;
+
+  // curve
+  const c2 = $("curve"); const [h, W2, H2] = sizeCanvas(c2, 1.7);
+  h.clearRect(0, 0, W2, H2);
+  const lo = -6, hi = 1, pad = 30;
+  const cx = k => pad + k / MAX_STEPS * (W2 - pad - 6), cy = v => 6 + (hi - Math.max(lo, Math.min(hi, v))) / (hi - lo) * (H2 - 26);
+  h.strokeStyle = "#e6e0d4"; h.fillStyle = "#7a7266"; h.font = "10.5px system-ui"; h.textAlign = "right";
+  for (let v = lo; v <= hi; v += 1) { h.beginPath(); h.moveTo(pad, cy(v)); h.lineTo(W2 - 6, cy(v)); h.stroke(); if ((v - lo) % 2 === 0) h.fillText("1e" + v, pad - 3, cy(v) + 4); }
+  h.textAlign = "center"; h.fillText("step", (W2 + pad) / 2, H2 - 4);
+  OPTS.forEach(o => {
+    if (!o.on) return; h.beginPath();
+    runs[o.id].hist.forEach((v, k) => { const y = cy(Math.log10(Math.max(v, 1e-12))); k ? h.lineTo(cx(k), y) : h.moveTo(cx(k), y); });
+    h.strokeStyle = o.color; h.lineWidth = 1.6; h.stroke();
+  });
+}
+
+function loadSurface() {
+  surf = S[$("surface").value]; start = surf.start.slice();
+  OPTS.forEach(o => o.lr = surf.lr[o.id]);
+  $("note").textContent = surf.note; bgKey = ""; stop(); reset(); drawAll(true);
+}
+function stop() { if (timer) { clearInterval(timer); timer = null; } $("play").textContent = "▶ Play"; }
+$("play").onclick = () => {
+  if (timer) return stop();
+  if (t >= MAX_STEPS) reset();
+  $("play").textContent = "❚❚ Pause";
+  timer = setInterval(() => { advance(2); if (t >= MAX_STEPS) stop(); }, 16);
+};
+$("stepBtn").onclick = () => advance(10);
+$("reset").onclick = () => { stop(); reset(); };
+$("surface").onchange = loadSurface;
+$("surf").onclick = e => {
+  const r = e.target.getBoundingClientRect();
+  start = [surf.xr[0] + (e.clientX - r.left) / r.width * (surf.xr[1] - surf.xr[0]), surf.yr[1] - (e.clientY - r.top) / r.height * (surf.yr[1] - surf.yr[0])];
+  stop(); reset();
+};
+window.addEventListener("resize", () => { bgKey = ""; drawAll(false); });
+loadSurface();
+</script>
+</body>
+</html>
