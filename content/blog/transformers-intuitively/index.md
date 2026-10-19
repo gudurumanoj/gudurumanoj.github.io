@@ -1,5 +1,5 @@
 ---
-title: "Transformers, Intuitively: Attention, Q/K/V, FFNs, Positions and GQA"
+title: "Transformers"
 date: 2026-10-19T10:00:00+05:30
 draft: false
 topics: ["ml", "math"]

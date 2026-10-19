@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Serving calculator: prefill, decode and the KV cache</title>
+<style>
+  :root {
+    --bg: #fdfcf8; --text: #2d2a23; --muted: #7a7266; --accent: #a66b4f;
+    --line: #e6e0d4; --card: #f6f2ea; --blue: #4f7aa6; --green: #5f8a5a; --sand: #c9a46a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px; background: var(--bg); color: var(--text);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 22px; }
+  @media (max-width: 680px) { .grid { grid-template-columns: 1fr; } }
+  .field { display: flex; flex-direction: column; gap: 2px; }
+  .field .top { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--muted); }
+  .field .top b { color: var(--text); font-family: ui-monospace, Menlo, monospace; font-weight: 600; }
+  select, input[type=range] { width: 100%; accent-color: var(--accent); font: inherit; }
+  select { padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--text); }
+  h3 { margin: 16px 0 6px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  @media (max-width: 680px) { .cards { grid-template-columns: repeat(2, 1fr); } }
+  .card { background: var(--card); border-radius: 8px; padding: 8px 10px; }
+  .card .k { font-size: 11.5px; color: var(--muted); }
+  .card .v { font-family: ui-monospace, Menlo, monospace; font-size: 16px; font-weight: 600; }
+  .bar { display: flex; height: 22px; border-radius: 6px; overflow: hidden; background: var(--line); margin: 4px 0; }
+  .bar div { height: 100%; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  .status { margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: var(--card); border-left: 3px solid var(--accent); }
+  .warn { border-left-color: #b5523b; }
+  svg text { font: 11px system-ui, sans-serif; fill: var(--muted); }
+</style>
+</head>
+<body>
+<div class="grid">
+  <div class="field"><div class="top">Model (BF16)</div><select id="model"></select></div>
+  <div class="field"><div class="top">GPU</div><select id="gpu"></select></div>
+  <div class="field"><div class="top">GPUs (tensor parallel) <b id="ngpuV"></b></div><input type="range" id="ngpu" min="0" max="3" step="1" value="0"></div>
+  <div class="field"><div class="top">Concurrent sequences (decode batch) <b id="batchV"></b></div><input type="range" id="batch" min="0" max="10" step="1" value="5"></div>
+  <div class="field"><div class="top">Prompt length (tokens) <b id="promptV"></b></div><input type="range" id="prompt" min="7" max="17" step="1" value="11"></div>
+  <div class="field"><div class="top">Output length (tokens) <b id="outV"></b></div><input type="range" id="out" min="4" max="13" step="1" value="9"></div>
+  <div class="field"><div class="top">Prefix-cache hit rate <b id="hitV"></b></div><input type="range" id="hit" min="0" max="95" step="5" value="0"></div>
+  <div class="field"><div class="top">Achieved fraction of peak (MFU / bandwidth) <b id="effV"></b></div><input type="range" id="eff" min="30" max="100" step="5" value="60"></div>
+</div>
+
+<h3>Per request</h3>
+<div class="cards">
+  <div class="card"><div class="k">TTFT (prefill)</div><div class="v" id="ttft"></div></div>
+  <div class="card"><div class="k">Time per output token</div><div class="v" id="tpot"></div></div>
+  <div class="card"><div class="k">Tokens/s per user</div><div class="v" id="tpsUser"></div></div>
+  <div class="card"><div class="k">End-to-end latency</div><div class="v" id="e2e"></div></div>
+</div>
+<h3>Per deployment</h3>
+<div class="cards">
+  <div class="card"><div class="k">Output tokens/s total</div><div class="v" id="tpsAll"></div></div>
+  <div class="card"><div class="k">KV cache per sequence</div><div class="v" id="kvSeq"></div></div>
+  <div class="card"><div class="k">Max sequences that fit</div><div class="v" id="maxSeq"></div></div>
+  <div class="card"><div class="k">Ridge point (FLOPs/byte)</div><div class="v" id="ridge"></div></div>
+</div>
+
+<h3>One decode step, split by what it waits on</h3>
+<div class="bar" id="bar"></div>
+<div class="legend">
+  <span><i style="background:var(--accent)"></i>reading weights</span>
+  <span><i style="background:var(--blue)"></i>reading KV cache</span>
+  <span><i style="background:var(--green)"></i>compute (if it were the bottleneck)</span>
+</div>
+
+<h3>Throughput vs. per-user speed, by batch size</h3>
+<svg id="chart" viewBox="0 0 640 170" width="100%"></svg>
+<div class="status" id="status"></div>
+
+<script>
+const MODELS = {
+  "Llama 2 7B (MHA, 32 KV heads)": [32, 4096, 32, 32, 128, 11008, 32000],
+  "Llama 3 8B (GQA, 8 KV heads)":  [32, 4096, 32, 8, 128, 14336, 128256],
+  "Qwen3 32B (GQA, 8 KV heads)":   [64, 5120, 64, 8, 128, 25600, 151936],
+  "Llama 3 70B (GQA, 8 KV heads)": [80, 8192, 64, 8, 128, 28672, 128256],
+};
+const GPUS = {                          // dense BF16 FLOP/s, HBM bytes/s, memory bytes
+  "H100 SXM (989 TFLOPS, 3.35 TB/s, 80 GB)": [989e12, 3.35e12, 80e9],
+  "H200 (989 TFLOPS, 4.8 TB/s, 141 GB)":     [989e12, 4.8e12, 141e9],
+  "A100 80GB (312 TFLOPS, 2.04 TB/s)":       [312e12, 2.039e12, 80e9],
+  "A10 (125 TFLOPS, 600 GB/s, 24 GB)":       [125e12, 0.6e12, 24e9],
+};
+const BATCHES = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024];
+const $ = id => document.getElementById(id);
+for (const k in MODELS) $("model").add(new Option(k, k));
+for (const k in GPUS) $("gpu").add(new Option(k, k));
+$("model").value = "Llama 3 8B (GQA, 8 KV heads)";
+
+function params([L, d, H, Hkv, dh, ff, V]) {
+  return L * (2 * d * H * dh + 2 * d * Hkv * dh + 3 * d * ff) + 2 * V * d;
+}
+const fmtT = s => s < 1e-3 ? (s * 1e6).toFixed(0) + " µs" : s < 1 ? (s * 1e3).toFixed(1) + " ms" : s.toFixed(2) + " s";
+const fmtB = b => b >= 1e9 ? (b / 2 ** 30).toFixed(2) + " GiB" : (b / 2 ** 20).toFixed(0) + " MiB";
+const fmtN = n => n >= 1e4 ? (n / 1e3).toFixed(1) + "k" : n.toFixed(0);
+
+function model(cfg, gpu, n, batch, prompt, out, hit, eff) {
+  const [L, d, H, Hkv, dh] = cfg;
+  const [F0, BW0, MEM0] = gpu;
+  const P = params(cfg), W = 2 * P, kvTok = 2 * L * Hkv * dh * 2;
+  const F = F0 * n * eff, BW = BW0 * n * eff, MEM = MEM0 * n;
+  const uncached = Math.max(1, Math.round(prompt * (1 - hit)));
+  const prefillFlops = 2 * P * uncached + 2 * L * H * dh * uncached * prompt;
+  const ttft = prefillFlops / F;
+  const ctx = prompt + out / 2;                       // average context during decode
+  const tW = W / BW, tKV = batch * ctx * kvTok / BW, tC = 2 * P * batch / F;
+  const step = Math.max(tW + tKV, tC);
+  const maxSeq = Math.floor((MEM * 0.9 - W) / (kvTok * (prompt + out)));
+  return { P, W, kvTok, ttft, tW, tKV, tC, step, maxSeq, ridge: F0 / BW0 };
+}
+
+function render() {
+  const cfg = MODELS[$("model").value], gpu = GPUS[$("gpu").value];
+  const n = 2 ** +$("ngpu").value, batch = BATCHES[+$("batch").value];
+  const prompt = 2 ** +$("prompt").value, out = 2 ** +$("out").value;
+  const hit = +$("hit").value / 100, eff = +$("eff").value / 100;
+  $("ngpuV").textContent = n; $("batchV").textContent = batch;
+  $("promptV").textContent = prompt.toLocaleString(); $("outV").textContent = out.toLocaleString();
+  $("hitV").textContent = Math.round(hit * 100) + "%"; $("effV").textContent = Math.round(eff * 100) + "%";
+
+  const r = model(cfg, gpu, n, batch, prompt, out, hit, eff);
+  $("ttft").textContent = fmtT(r.ttft);
+  $("tpot").textContent = fmtT(r.step);
+  $("tpsUser").textContent = fmtN(1 / r.step);
+  $("e2e").textContent = fmtT(r.ttft + out * r.step);
+  $("tpsAll").textContent = fmtN(batch / r.step);
+  $("kvSeq").textContent = fmtB(r.kvTok * (prompt + out));
+  $("maxSeq").textContent = r.maxSeq > 0 ? r.maxSeq.toLocaleString() : "0";
+  $("ridge").textContent = r.ridge.toFixed(0);
+
+  const total = Math.max(r.tW + r.tKV, r.tC);
+  $("bar").innerHTML =
+    `<div style="width:${100 * r.tW / total}%;background:var(--accent)"></div>` +
+    `<div style="width:${100 * r.tKV / total}%;background:var(--blue)"></div>` +
+    (r.tC > r.tW + r.tKV ? `<div style="width:${100 * (r.tC - r.tW - r.tKV) / total}%;background:var(--green)"></div>` : "");
+
+  const pts = BATCHES.map(b => { const x = model(cfg, gpu, n, b, prompt, out, hit, eff); return [b, b / x.step, 1 / x.step, x.maxSeq]; });
+  const maxT = Math.max(...pts.map(p => p[1])), maxU = Math.max(...pts.map(p => p[2]));
+  const X = i => 40 + i * 56, Y1 = v => 150 - 125 * v / maxT, Y2 = v => 150 - 125 * v / maxU;
+  let svg = `<line x1="40" y1="150" x2="610" y2="150" stroke="#e6e0d4"/>`;
+  pts.forEach((p, i) => {
+    svg += `<text x="${X(i)}" y="165" text-anchor="middle">${p[0]}</text>`;
+    if (p[0] > p[3]) svg += `<rect x="${X(i) - 28}" y="20" width="56" height="130" fill="#b5523b" opacity="0.07"/>`;
+  });
+  svg += `<polyline fill="none" stroke="#a66b4f" stroke-width="2" points="${pts.map((p, i) => X(i) + "," + Y1(p[1])).join(" ")}"/>`;
+  svg += `<polyline fill="none" stroke="#4f7aa6" stroke-width="2" stroke-dasharray="5 4" points="${pts.map((p, i) => X(i) + "," + Y2(p[2])).join(" ")}"/>`;
+  const ci = +$("batch").value;
+  svg += `<circle cx="${X(ci)}" cy="${Y1(pts[ci][1])}" r="4" fill="#a66b4f"/><circle cx="${X(ci)}" cy="${Y2(pts[ci][2])}" r="4" fill="#4f7aa6"/>`;
+  svg += `<text x="44" y="14" fill="#a66b4f">— total tokens/s (max ${fmtN(maxT)})</text>`;
+  svg += `<text x="300" y="14" fill="#4f7aa6">- - tokens/s per user (max ${fmtN(maxU)})</text>`;
+  $("chart").innerHTML = svg;
+
+  const st = $("status");
+  st.classList.toggle("warn", batch > r.maxSeq);
+  if (r.maxSeq <= 0) {
+    st.textContent = `The weights alone (${fmtB(r.W / n)} per GPU) don't fit. Add GPUs.`;
+  } else if (batch > r.maxSeq) {
+    st.textContent = `Doesn't fit: ${batch} sequences × ${(prompt + out).toLocaleString()} tokens need more KV memory than is left after the weights (${r.maxSeq} fit). A real server would queue or preempt; shaded columns in the chart are infeasible.`;
+  } else {
+    const bound = r.tC > r.tW + r.tKV ? "compute-bound" : (r.tKV > r.tW ? "memory-bound, dominated by KV-cache reads" : "memory-bound, dominated by weight reads");
+    st.textContent = `Decode is ${bound}. Weights are read once per step and shared by all ${batch} sequences, so throughput grows with the batch until KV reads (which grow with batch × context) or compute take over. Prefill of ${Math.round(prompt * (1 - hit)).toLocaleString()} uncached tokens is compute-bound.`;
+  }
+}
+document.querySelectorAll("select, input").forEach(el => el.addEventListener("input", render));
+render();
+</script>
+</body>
+</html>
