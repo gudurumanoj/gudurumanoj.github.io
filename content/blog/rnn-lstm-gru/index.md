@@ -1,7 +1,7 @@
 ---
 title: "RNNs, LSTMs and GRUs, From Scratch"
 date: 2026-10-20T12:00:00+05:30
-draft: true
+draft: false
 topics: ["ml", "math"]
 tags: ["building-block", "rnn", "interview"]
 summary: "Recurrent networks from first principles: why sequences need shared weights and a running state, the Elman RNN, backpropagation through time derived line by line, why gradients vanish or explode (and what clipping, orthogonal init and gating do about it), the LSTM and GRU with every gate explained and their backward passes derived, all of it implemented by hand in PyTorch and checked against autograd and nn.LSTM / nn.GRU, plus packing, bidirectional and stacked RNNs, dropout, teacher forcing, seq2seq, the road to attention, and a bank of interview questions."

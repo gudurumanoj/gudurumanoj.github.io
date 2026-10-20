@@ -1,7 +1,7 @@
 ---
 title: "Neural Networks and CNNs From Scratch: Forward, Backward, and Why"
 date: 2026-10-20T13:00:00+05:30
-draft: true
+draft: false
 topics: ["ml", "math"]
 tags: ["building-block", "cnn", "interview"]
 summary: "A two-layer softmax network and a convolutional network built from first principles: why hidden layers and convolutions were invented, every forward and backward pass derived with shapes (softmax Jacobian, ReLU masks, the rotated-kernel convolution gradient, pooling, im2col), NumPy implementations with manual backprop and gradient checks, PyTorch versions that let autograd do the backward and match to 1e-16, He initialisation derived, what 32 or 64 filters capture and why channels double as resolution halves, every common convolution type (1×1, depthwise-separable, grouped, dilated, transposed), the architectures from LeNet to ConvNeXt, and a bank of common and tough interview questions."

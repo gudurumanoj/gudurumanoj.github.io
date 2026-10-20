@@ -1,7 +1,7 @@
 ---
 title: "Prefix Sums, Once and For All"
 date: 2026-10-03T10:00:00+05:30
-draft: true
+draft: false
 topics: ["cp"]
 tags: ["building-block"]
 summary: "Range-sum queries in O(1) after O(n) preprocessing, plus the 2D version and difference arrays."

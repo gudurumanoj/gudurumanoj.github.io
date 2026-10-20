@@ -1,7 +1,7 @@
 ---
 title: "Principal Component Analysis, Derived"
 date: 2026-10-20T11:00:00+05:30
-draft: true
+draft: false
 topics: ["ml", "math"]
 tags: ["building-block", "pca", "interview"]
 summary: "PCA from first principles: why Pearson and Hotelling invented it, every piece of linear algebra it rests on (centring, covariance, positive semi-definiteness, the spectral theorem, Rayleigh quotients) proved rather than quoted, three derivations that land on the same eigenvectors (maximum variance, minimum reconstruction error, SVD), a worked 2-D example by hand, power iteration, choosing k, probabilistic PCA, whitening, scaling and sign pitfalls, kernel PCA, linear autoencoders, randomized SVD, and a bank of common and hard interview questions. All code is NumPy from scratch with real outputs."

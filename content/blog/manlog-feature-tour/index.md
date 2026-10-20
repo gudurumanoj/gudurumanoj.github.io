@@ -1,7 +1,7 @@
 ---
 title: "A Tour of man'log: Everything a Post Can Do"
 date: 2026-10-07T09:00:00+05:30
-draft: false
+draft: true
 tags: ["building-block", "meta"]
 summary: "A reference post that exercises every feature of this blog: images, GIFs, code, LaTeX math, Mermaid diagrams, embedded interactive demos, and the contents rail on the right."
 aliases: ["/blog/building-blocks/manlog-feature-tour/"]
