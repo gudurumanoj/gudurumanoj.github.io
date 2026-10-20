@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Why squared error is a bad loss for a sigmoid</title>
+<style>
+  :root { --bg:#fdfcf8; --text:#2d2a23; --muted:#7a7266; --accent:#a66b4f; --line:#e6e0d4; --card:#f6f2ea; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:14px 16px; background:var(--bg); color:var(--text); font:13.5px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  .row { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; margin-bottom:10px; }
+  label { display:inline-flex; gap:5px; align-items:center; cursor:pointer; }
+  button { font:inherit; padding:4px 12px; border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--text); cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  input[type=range] { width:160px; accent-color:var(--accent); vertical-align:middle; }
+  .panels { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:640px){ .panels{ grid-template-columns:1fr; } }
+  canvas { width:100%; display:block; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  h3 { margin:0 0 4px; font-size:12px; font-weight:600; color:var(--muted); }
+  .stack canvas + h3 { margin-top:8px; }
+  .status { margin-top:10px; padding:9px 12px; border-radius:8px; background:var(--card); border-left:3px solid var(--accent); font-variant-numeric:tabular-nums; }
+</style>
+</head>
+<body>
+<div class="row">
+  <span>Left panel shows:</span>
+  <label><input type="radio" name="mode" value="loss" checked> the loss</label>
+  <label><input type="radio" name="mode" value="grad"> the gradient's size |∂loss/∂z|</label>
+  <span style="flex:1"></span>
+  <span>start at w₀ = <b id="w0L"></b></span><input type="range" id="w0" min="-10" max="4" step="0.5" value="-6">
+  <button id="run">run gradient descent</button>
+</div>
+<div class="panels">
+  <div><h3>One example with label 1, as a function of its logit z</h3><canvas id="cz"></canvas></div>
+  <div class="stack">
+    <h3>Training loss vs the weight w: cross-entropy</h3><canvas id="cce"></canvas>
+    <h3>Training loss vs the weight w: squared error on σ(wx)</h3><canvas id="cmse"></canvas>
+  </div>
+</div>
+<div class="status" id="status"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const CE = "#a66b4f", MS = "#4f7aa6";
+const sig = z => 1 / (1 + Math.exp(-z));
+const softplus = z => z > 0 ? z + Math.log1p(Math.exp(-z)) : Math.log1p(Math.exp(z));
+const X = [-2.4, -2.0, -1.7, -1.4, -1.2, -1.0, 1.0, 1.2, 1.4, 1.7, 2.0, 2.4];
+const Y = [0, 0, 0, 0, 1, 0, 1, 0, 1, 1, 1, 1];
+const n = X.length, ETA = 1.0, STEPS = 2000;
+const lossCE = w => X.reduce((s, x, i) => s + softplus(w * x) - Y[i] * w * x, 0) / n;
+const lossMS = w => X.reduce((s, x, i) => s + (sig(w * x) - Y[i]) ** 2, 0) / n;
+const gradCE = w => X.reduce((s, x, i) => s + (sig(w * x) - Y[i]) * x, 0) / n;
+const gradMS = w => X.reduce((s, x, i) => { const p = sig(w * x); return s + 2 * (p - Y[i]) * p * (1 - p) * x; }, 0) / n;
+
+function canvas(id, aspect) {
+  const c = $(id), r = window.devicePixelRatio || 1, W = c.clientWidth, H = W * aspect;
+  c.width = W * r; c.height = H * r; c.style.height = H + "px";
+  const g = c.getContext("2d"); g.setTransform(r, 0, 0, r, 0, 0); g.clearRect(0, 0, W, H); return [g, W, H];
+}
+function axes(g, W, H, x0, x1, y0, y1, xl, ticks) {
+  const pad = { l: 34, r: 8, t: 8, b: 22 };
+  const sx = x => pad.l + (x - x0) / (x1 - x0) * (W - pad.l - pad.r);
+  const sy = y => H - pad.b - (y - y0) / (y1 - y0) * (H - pad.t - pad.b);
+  g.strokeStyle = "#e6e0d4"; g.lineWidth = 1; g.fillStyle = "#7a7266"; g.font = "11px system-ui";
+  g.beginPath(); g.moveTo(sx(x0), sy(y0)); g.lineTo(sx(x1), sy(y0)); g.moveTo(sx(x0), sy(y0)); g.lineTo(sx(x0), sy(y1)); g.stroke();
+  ticks.forEach(t => { g.fillText(String(t), sx(t) - 4, H - 6); g.beginPath(); g.moveTo(sx(t), sy(y0)); g.lineTo(sx(t), sy(y0) + 3); g.stroke(); });
+  g.fillText(y1.toFixed(y1 < 2 ? 1 : 0), 4, sy(y1) + 9); g.fillText("0", 20, sy(y0));
+  g.fillText(xl, W - pad.r - 12, sy(y0) - 6);
+  return [sx, sy];
+}
+function curve(g, sx, sy, f, x0, x1, y1, col, width, dash) {
+  g.strokeStyle = col; g.lineWidth = width; g.setLineDash(dash || []); g.beginPath();
+  let pen = false;                           // lift the pen where the curve leaves the plot
+  for (let k = 0; k <= 600; k++) { const x = x0 + (x1 - x0) * k / 600, y = f(x);
+    if (y > y1) { pen = false; continue; }
+    pen ? g.lineTo(sx(x), sy(y)) : (g.moveTo(sx(x), sy(y)), pen = true); }
+  g.stroke(); g.setLineDash([]);
+}
+
+let wCE = null, wMS = null, step = 0, running = false;
+function drawLeft() {
+  const mode = document.querySelector("input[name=mode]:checked").value;
+  const [g, W, H] = canvas("cz", 0.8), y1 = mode === "loss" ? 3 : 1;
+  const [sx, sy] = axes(g, W, H, -8, 6, 0, y1, "z", [-8, -6, -4, -2, 0, 2, 4, 6]);
+  if (mode === "loss") {
+    curve(g, sx, sy, z => softplus(-z), -8, 6, y1, CE, 2.6);
+    curve(g, sx, sy, z => (1 - sig(z)) ** 2, -8, 6, y1, MS, 2.6);
+    g.fillStyle = CE; g.fillText("cross-entropy  −log σ(z)", sx(-1.2), sy(2.6));
+    g.fillStyle = MS; g.fillText("squared error, never above 1", sx(-7.8), sy(1.12));
+  } else {
+    curve(g, sx, sy, z => 1 - sig(z), -8, 6, y1, CE, 2.6);
+    curve(g, sx, sy, z => 2 * sig(z) * (1 - sig(z)) ** 2, -8, 6, y1, MS, 2.6);
+    g.fillStyle = CE; g.fillText("cross-entropy: 1 − σ(z)", sx(-7.8), sy(0.92));
+    g.fillStyle = MS; g.fillText("squared error: 2σ(1 − σ)²", sx(-7.8), sy(0.12));
+    g.fillStyle = "#7a7266"; g.fillText("← confidently wrong", sx(-7.8), sy(0.5)); g.fillText("right →", sx(3.6), sy(0.5));
+  }
+}
+function drawRight() {
+  const w0 = +$("w0").value;
+  [["cce", lossCE, CE, wCE, 15], ["cmse", lossMS, MS, wMS, 1]].forEach(([id, f, col, w, y1]) => {
+    const [g, W, H] = canvas(id, 0.38);
+    const [sx, sy] = axes(g, W, H, -10, 4, 0, y1, "w", [-10, -8, -6, -4, -2, 0, 2, 4]);
+    curve(g, sx, sy, f, -10, 4, y1, col, 2.4);
+    g.fillStyle = "#7a7266"; g.beginPath(); g.arc(sx(w0), sy(Math.min(f(w0), y1)), 4, 0, 7); g.fill();
+    if (w !== null) { g.fillStyle = col; g.beginPath(); g.arc(sx(w), sy(Math.min(f(w), y1)), 6.5, 0, 7); g.fill(); g.strokeStyle = "#fff"; g.lineWidth = 1.5; g.stroke(); }
+  });
+}
+function status() {
+  if (wCE === null) {
+    const w0 = +$("w0").value;
+    $("status").innerHTML = `Both losses are minimised near w ≈ 1.1, where the model says "larger x means more likely 1". ` +
+      `Starting from w₀ = ${w0}, the gradient there is <b>${gradCE(w0).toFixed(4)}</b> for cross-entropy and <b>${gradMS(w0).toExponential(1)}</b> for squared error. Press run.`;
+    return;
+  }
+  $("status").innerHTML = `Step <b>${step}</b> of ${STEPS} (learning rate ${ETA}). Cross-entropy: w = <b>${wCE.toFixed(3)}</b>. ` +
+    `Squared error: w = <b>${wMS.toFixed(3)}</b>.` + (step === STEPS ? " Try w₀ = −10: squared error doesn't escape at all in 2,000 steps." : "");
+}
+function draw() { $("w0L").textContent = (+$("w0").value).toFixed(1); drawLeft(); drawRight(); status(); }
+function tick() {
+  for (let k = 0; k < 10 && step < STEPS; k++, step++) { wCE -= ETA * gradCE(wCE); wMS -= ETA * gradMS(wMS); }
+  drawRight(); status();
+  if (step < STEPS && running) requestAnimationFrame(tick); else running = false;
+}
+$("run").onclick = () => { wCE = wMS = +$("w0").value; step = 0; if (!running) { running = true; requestAnimationFrame(tick); } };
+$("w0").oninput = () => { running = false; wCE = wMS = null; step = 0; draw(); };
+document.querySelectorAll("input[name=mode]").forEach(r => r.onchange = drawLeft);
+window.addEventListener("resize", draw);
+draw();
+</script>
+</body>
+</html>

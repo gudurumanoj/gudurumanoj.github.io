@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A straight line vs a sigmoid on 0/1 labels</title>
+<style>
+  :root { --bg:#fdfcf8; --text:#2d2a23; --muted:#7a7266; --accent:#a66b4f; --line:#e6e0d4; --card:#f6f2ea; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:14px 16px; background:var(--bg); color:var(--text); font:13.5px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  .row { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; margin-bottom:10px; }
+  button { font:inherit; padding:4px 10px; border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--text); cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  canvas { width:100%; display:block; border:1px solid var(--line); border-radius:8px; background:#fff; cursor:crosshair; touch-action:none; }
+  .legend { display:grid; grid-template-columns:1fr 1fr; gap:6px 14px; margin-top:8px; font-variant-numeric:tabular-nums; }
+  @media (max-width:600px){ .legend{ grid-template-columns:1fr; } }
+  .sw { display:inline-block; width:18px; height:3px; border-radius:2px; vertical-align:middle; margin-right:5px; }
+  .status { margin-top:10px; padding:9px 12px; border-radius:8px; background:var(--card); border-left:3px solid var(--accent); }
+</style>
+</head>
+<body>
+<div class="row">
+  <button id="far">add 8 easy positives far to the right</button>
+  <button id="reset">reset</button>
+  <span style="color:var(--muted)">click the top half to add a 1, the bottom half to add a 0; drag to move; double-click to delete</span>
+</div>
+<canvas id="c"></canvas>
+<div class="legend" id="legend"></div>
+<div class="status" id="status"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const XMAX = 20, YLO = -0.35, YHI = 1.45, LIN = "#4f7aa6", LOG = "#a66b4f";
+let pts = [], drag = -1;
+
+function reset() {
+  pts = [1, 1.8, 2.5, 3.2, 4, 4.6, 5.2, 5.8].map(x => [x, 0]).concat([7, 7.5, 8.2, 9, 9.6, 10.3, 11, 11.8].map(x => [x, 1]));
+  draw();
+}
+function ols(P) {
+  const n = P.length, mx = P.reduce((s, p) => s + p[0], 0) / n, my = P.reduce((s, p) => s + p[1], 0) / n;
+  let sxy = 0, sxx = 0; for (const [x, y] of P) { sxy += (x - mx) * (y - my); sxx += (x - mx) ** 2; }
+  const b = sxx > 1e-12 ? sxy / sxx : 0; return [my - b * mx, b];
+}
+const sig = z => 1 / (1 + Math.exp(-z));
+function logistic(P) {               // Newton's method, with a small ridge on the slope so separable data stays finite
+  let a = 0, b = 0; const lam = 0.3, m = P.reduce((s, p) => s + p[0], 0) / P.length;
+  for (let k = 0; k < 50; k++) {
+    let ga = 0, gb = 0, haa = 0, hab = 0, hbb = 0;
+    for (const [x0, y] of P) { const x = x0 - m, p = sig(a + b * x), s = p * (1 - p);
+      ga += p - y; gb += (p - y) * x; haa += s; hab += s * x; hbb += s * x * x; }
+    gb += lam * b; hbb += lam;
+    const det = haa * hbb - hab * hab; if (det < 1e-14) break;
+    a -= (hbb * ga - hab * gb) / det; b -= (haa * gb - hab * ga) / det;
+  }
+  return [a - b * m, b];
+}
+
+let g, W, H;
+function size() {
+  const c = $("c"), r = window.devicePixelRatio || 1; W = c.clientWidth; H = Math.max(260, W * 0.42);
+  c.width = W * r; c.height = H * r; c.style.height = H + "px"; g = c.getContext("2d"); g.setTransform(r, 0, 0, r, 0, 0);
+}
+const sx = x => x / XMAX * W, sy = y => H - (y - YLO) / (YHI - YLO) * H, ix = px => px / W * XMAX;
+
+function draw() {
+  size(); g.clearRect(0, 0, W, H);
+  g.fillStyle = "rgba(166,107,79,.06)"; g.fillRect(0, 0, W, sy(1)); g.fillRect(0, sy(0), W, H - sy(0));
+  g.strokeStyle = "#e6e0d4"; g.lineWidth = 1; g.setLineDash([4, 4]);
+  [0, 0.5, 1].forEach(v => { g.beginPath(); g.moveTo(0, sy(v)); g.lineTo(W, sy(v)); g.stroke(); });
+  g.setLineDash([]); g.fillStyle = "#7a7266"; g.font = "11px system-ui";
+  g.fillText("y = 1", 4, sy(1) - 4); g.fillText("0.5", 4, sy(0.5) - 4); g.fillText("y = 0", 4, sy(0) + 13);
+  g.fillText("outside [0, 1]: not a probability", 4, 13);
+  if (pts.length < 2 || !pts.some(p => p[1] === 1) || !pts.some(p => p[1] === 0)) {
+    pts.forEach(drawPt); $("status").textContent = "Add at least one point of each class."; $("legend").innerHTML = ""; return;
+  }
+  const L = ols(pts), G = logistic(pts);
+  const tL = (0.5 - L[0]) / L[1], tG = -G[0] / G[1];
+  g.strokeStyle = LIN; g.lineWidth = 2.4; g.beginPath(); g.moveTo(0, sy(L[0])); g.lineTo(W, sy(L[0] + L[1] * XMAX)); g.stroke();
+  g.strokeStyle = LOG; g.lineWidth = 2.6; g.beginPath();
+  for (let k = 0; k <= 300; k++) { const x = k / 300 * XMAX, y = sig(G[0] + G[1] * x); k ? g.lineTo(sx(x), sy(y)) : g.moveTo(sx(x), sy(y)); }
+  g.stroke();
+  [[tL, LIN], [tG, LOG]].forEach(([t, col]) => { if (t > 0 && t < XMAX) { g.strokeStyle = col; g.lineWidth = 1.5; g.setLineDash([6, 4]);
+    g.beginPath(); g.moveTo(sx(t), sy(YHI)); g.lineTo(sx(t), sy(YLO)); g.stroke(); g.setLineDash([]); } });
+  pts.forEach(drawPt);
+
+  const acc = (pred) => pts.filter(([x, y]) => (pred(x) ? 1 : 0) === y).length;
+  const aL = acc(x => L[0] + L[1] * x > 0.5), aG = acc(x => G[0] + G[1] * x > 0);
+  const lo = L[0], hi = L[0] + L[1] * XMAX;
+  $("legend").innerHTML =
+    `<div><span class="sw" style="background:${LIN}"></span>straight line (MSE on 0/1): threshold x = <b>${tL.toFixed(2)}</b>, correct ${aL}/${pts.length}</div>` +
+    `<div><span class="sw" style="background:${LOG}"></span>logistic (cross-entropy): threshold x = <b>${tG.toFixed(2)}</b>, correct ${aG}/${pts.length}</div>`;
+  $("status").innerHTML = `The line predicts ${lo.toFixed(2)} at x = 0 and ${hi.toFixed(2)} at x = 20. ` +
+    `Squared error charges a point for being <i>too</i> right: a 1 at x = 19 where the line says 1.6 costs as much as a 1 where it says 0.4, ` +
+    `so easy points far from the boundary tilt the line and drag its 0.5 crossing with them. The sigmoid flattens out there, so those points cost almost nothing and barely move it.`;
+}
+function drawPt([x, y]) { g.fillStyle = y ? LOG : LIN; g.beginPath(); g.arc(sx(x), sy(y), 5.5, 0, 7); g.fill(); g.strokeStyle = "#fff"; g.lineWidth = 1.5; g.stroke(); }
+
+function hit(px, py) { for (let i = pts.length - 1; i >= 0; i--) if (Math.hypot(sx(pts[i][0]) - px, sy(pts[i][1]) - py) < 10) return i; return -1; }
+const c = $("c");
+c.addEventListener("pointerdown", e => {
+  const r = c.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+  let i = hit(px, py);
+  if (i < 0) { pts.push([Math.min(XMAX, Math.max(0, ix(px))), py < sy(0.5) ? 1 : 0]); i = pts.length - 1; }
+  drag = i; c.setPointerCapture(e.pointerId); draw();
+});
+c.addEventListener("pointermove", e => { if (drag < 0) return; const r = c.getBoundingClientRect();
+  pts[drag][0] = Math.min(XMAX, Math.max(0, ix(e.clientX - r.left))); draw(); });
+c.addEventListener("pointerup", () => drag = -1);
+c.addEventListener("dblclick", e => { const r = c.getBoundingClientRect(), i = hit(e.clientX - r.left, e.clientY - r.top);
+  if (i >= 0) { pts.splice(i, 1); draw(); } });
+$("far").onclick = () => { [15, 16, 17, 17.5, 18, 18.5, 19, 19.5].forEach(x => pts.push([x, 1])); draw(); };
+$("reset").onclick = reset;
+window.addEventListener("resize", draw);
+reset();
+</script>
+</body>
+</html>

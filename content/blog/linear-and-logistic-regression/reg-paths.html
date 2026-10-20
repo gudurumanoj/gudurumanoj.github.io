@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ridge, lasso and elastic-net coefficient paths</title>
+<style>
+  :root { --bg:#fdfcf8; --text:#2d2a23; --muted:#7a7266; --accent:#a66b4f; --line:#e6e0d4; --card:#f6f2ea; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:14px 16px; background:var(--bg); color:var(--text); font:13.5px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  .row { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; margin-bottom:8px; }
+  label { display:inline-flex; gap:5px; align-items:center; cursor:pointer; }
+  button { font:inherit; padding:4px 12px; border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--text); cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  .controls { display:grid; grid-template-columns:1fr 1fr; gap:8px 18px; margin-bottom:10px; }
+  @media (max-width:600px){ .controls{ grid-template-columns:1fr; } }
+  .ctl .top { display:flex; justify-content:space-between; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .panels { display:grid; grid-template-columns:3fr 2fr; gap:14px; }
+  @media (max-width:640px){ .panels{ grid-template-columns:1fr; } }
+  canvas { width:100%; display:block; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  h3 { margin:0 0 4px; font-size:12px; font-weight:600; color:var(--muted); }
+  .legend { display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:6px; font-size:12.5px; }
+  .sw { display:inline-block; width:14px; height:3px; border-radius:2px; vertical-align:middle; margin-right:4px; }
+  .status { margin-top:10px; padding:9px 12px; border-radius:8px; background:var(--card); border-left:3px solid var(--accent); font-variant-numeric:tabular-nums; }
+</style>
+</head>
+<body>
+<div class="row">
+  <span>Penalty:</span>
+  <label><input type="radio" name="pen" value="0"> ridge (L2)</label>
+  <label><input type="radio" name="pen" value="1" checked> lasso (L1)</label>
+  <label><input type="radio" name="pen" value="0.5"> elastic net (half and half)</label>
+  <button id="resample">new training sample</button>
+</div>
+<div class="controls">
+  <div class="ctl"><div class="top"><span>Penalty strength λ</span><b id="lamL"></b></div><input type="range" id="lam" min="0" max="79" step="1" value="40"></div>
+  <div class="ctl"><div class="top"><span>Correlation between x₁ and x₂</span><b id="rhoL"></b></div><input type="range" id="rho" min="0" max="0.99" step="0.01" value="0.9"></div>
+</div>
+<div class="panels">
+  <div><h3>Coefficient paths (λ grows to the right)</h3><canvas id="path"></canvas></div>
+  <div><h3>Coefficients at the current λ (ticks = truth)</h3><canvas id="bars"></canvas></div>
+</div>
+<div class="legend" id="legend"></div>
+<div class="status" id="status"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const D = 6, NTR = 60, NTE = 2000, SIGMA = 1.5, W_TRUE = [1.5, 1.5, -2, 1, 0, 0];
+const COLS = ["#a66b4f", "#c29a3a", "#4f7aa6", "#5c8a6a", "#7a6aa8", "#8a8270"];
+const NAMES = ["x₁", "x₂ (correlated with x₁)", "x₃", "x₄", "x₅ (noise)", "x₆ (noise)"];
+const LAMS = Array.from({ length: 80 }, (_, k) => Math.pow(10, -3 + 5 * k / 79));
+let seed = 11, tr, te, paths, mse;
+
+function rngFrom(s0) { let s = s0 >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+function gauss(r) { return Math.sqrt(-2 * Math.log(r() + 1e-12)) * Math.cos(2 * Math.PI * r()); }
+function sample(n, rho, r) {
+  const X = [], y = [];
+  for (let i = 0; i < n; i++) {
+    const z = Array.from({ length: D }, () => gauss(r));
+    const x = z.slice(); x[1] = rho * z[0] + Math.sqrt(1 - rho * rho) * z[1];
+    X.push(x); y.push(x.reduce((s, v, j) => s + v * W_TRUE[j], 0) + SIGMA * gauss(r));
+  }
+  return { X, y };
+}
+function build() {
+  const rho = +$("rho").value;
+  tr = sample(NTR, rho, rngFrom(seed)); te = sample(NTE, rho, rngFrom(999));
+  const mu = Array(D).fill(0), sd = Array(D).fill(0), my = tr.y.reduce((a, b) => a + b, 0) / NTR;   // standardise with training stats
+  tr.X.forEach(x => x.forEach((v, j) => mu[j] += v / NTR));
+  tr.X.forEach(x => x.forEach((v, j) => sd[j] += (v - mu[j]) ** 2 / NTR));
+  for (let j = 0; j < D; j++) sd[j] = Math.sqrt(sd[j]);
+  const std = s => { s.Xs = s.X.map(x => x.map((v, j) => (v - mu[j]) / sd[j])); s.yc = s.y.map(v => v - my); };
+  std(tr); std(te);
+  tr.scale = sd;                                              // to report coefficients on the original scale
+  fitPaths();
+}
+function fitPaths() {                                          // coordinate descent, warm-started from large λ to small
+  const alpha = +document.querySelector("input[name=pen]:checked").value, X = tr.Xs, y = tr.yc;
+  let w = Array(D).fill(0), r = y.slice();
+  paths = Array(LAMS.length); mse = Array(LAMS.length);
+  for (let k = LAMS.length - 1; k >= 0; k--) {
+    const lam = LAMS[k];
+    for (let sweep = 0; sweep < 300; sweep++) {
+      let change = 0;
+      for (let j = 0; j < D; j++) {
+        let rho = 0; for (let i = 0; i < NTR; i++) { r[i] += X[i][j] * w[j]; rho += X[i][j] * r[i]; } rho /= NTR;
+        const t = lam * alpha, nw = Math.sign(rho) * Math.max(Math.abs(rho) - t, 0) / (1 + lam * (1 - alpha));
+        change = Math.max(change, Math.abs(nw - w[j])); w[j] = nw;
+        for (let i = 0; i < NTR; i++) r[i] -= X[i][j] * w[j];
+      }
+      if (change < 1e-9) break;
+    }
+    paths[k] = w.map((v, j) => v / tr.scale[j]);
+    const err = s => s.Xs.reduce((acc, x, i) => acc + (s.yc[i] - x.reduce((a, v, j) => a + v * w[j], 0)) ** 2, 0) / s.Xs.length;
+    mse[k] = [err(tr), err(te)];
+  }
+}
+
+function canvas(id, aspect) {
+  const c = $(id), r = window.devicePixelRatio || 1, W = c.clientWidth, H = W * aspect;
+  c.width = W * r; c.height = H * r; c.style.height = H + "px";
+  const g = c.getContext("2d"); g.setTransform(r, 0, 0, r, 0, 0); return [g, W, H];
+}
+const YR = 2.6, clamp = v => Math.max(-YR, Math.min(YR, v));
+function drawPaths() {
+  const [g, W, H] = canvas("path", 0.62), pl = 30, pb = 22;
+  const sx = k => pl + k / 79 * (W - pl - 8), sy = v => 8 + (YR - clamp(v)) / (2 * YR) * (H - 8 - pb);
+  g.strokeStyle = "#e6e0d4"; g.lineWidth = 1; g.fillStyle = "#7a7266"; g.font = "11px system-ui";
+  [-2, -1, 0, 1, 2].forEach(v => { g.beginPath(); g.moveTo(pl, sy(v)); g.lineTo(W - 8, sy(v)); g.stroke(); g.fillText(String(v), 6, sy(v) + 4); });
+  [-3, -2, -1, 0, 1, 2].forEach(e => { const k = (e + 3) / 5 * 79; g.fillText("10" + ["⁻³", "⁻²", "⁻¹", "⁰", "¹", "²"][e + 3], sx(k) - 8, H - 6); });
+  for (let j = D - 1; j >= 0; j--) {
+    g.strokeStyle = COLS[j]; g.lineWidth = j < 2 ? 2.6 : 1.8; g.beginPath();
+    paths.forEach((w, k) => k ? g.lineTo(sx(k), sy(w[j])) : g.moveTo(sx(k), sy(w[j]))); g.stroke();
+  }
+  const k = +$("lam").value; g.strokeStyle = "#2d2a23"; g.setLineDash([4, 4]); g.lineWidth = 1;
+  g.beginPath(); g.moveTo(sx(k), 8); g.lineTo(sx(k), H - pb); g.stroke(); g.setLineDash([]);
+}
+function drawBars() {
+  const [g, W, H] = canvas("bars", 0.93), w = paths[+$("lam").value], bw = (W - 20) / D, mid = H / 2, sc = (H / 2 - 16) / YR;
+  g.strokeStyle = "#e6e0d4"; g.beginPath(); g.moveTo(0, mid); g.lineTo(W, mid); g.stroke();
+  g.font = "11px system-ui";
+  for (let j = 0; j < D; j++) {
+    const x = 10 + j * bw;
+    const v = clamp(w[j]);
+    g.fillStyle = COLS[j]; g.fillRect(x + bw * 0.18, Math.min(mid, mid - v * sc), bw * 0.64, Math.abs(v) * sc || 1);
+    g.strokeStyle = "#2d2a23"; g.lineWidth = 2; g.setLineDash([3, 2]);
+    g.beginPath(); g.moveTo(x + bw * 0.08, mid - W_TRUE[j] * sc); g.lineTo(x + bw * 0.92, mid - W_TRUE[j] * sc); g.stroke(); g.setLineDash([]);
+    g.fillStyle = "#2d2a23"; const lbl = w[j] === 0 ? "0" : w[j].toFixed(2);
+    g.fillText(lbl, x + bw * 0.5 - lbl.length * 3, w[j] >= 0 ? Math.min(mid + 14, H - 4) : mid - 6);
+    g.fillStyle = "#7a7266"; g.fillText("x" + "₁₂₃₄₅₆"[j], x + bw * 0.5 - 5, H - 4);
+  }
+}
+function draw() {
+  const k = +$("lam").value, alpha = +document.querySelector("input[name=pen]:checked").value;
+  $("lamL").textContent = LAMS[k] < 0.1 ? LAMS[k].toExponential(1) : LAMS[k].toFixed(2); $("rhoL").textContent = (+$("rho").value).toFixed(2);
+  drawPaths(); drawBars();
+  $("legend").innerHTML = NAMES.map((n, j) => `<span><span class="sw" style="background:${COLS[j]}"></span>${n}</span>`).join("");
+  const w = paths[k], nz = w.filter(v => v !== 0).length, best = mse.reduce((b, m, i) => m[1] < mse[b][1] ? i : b, 0);
+  const kind = alpha === 0 ? "Ridge scales every coefficient down by a factor and never reaches exactly zero" :
+               alpha === 1 ? "Lasso subtracts a constant amount and clamps at zero, so coefficients hit 0 one by one" :
+                             "Elastic net zeroes coefficients like lasso but keeps correlated features together like ridge";
+  $("status").innerHTML = `${kind}. Non-zero coefficients: <b>${nz}</b> of 6. ` +
+    `Training MSE ${mse[k][0].toFixed(2)}, test MSE <b>${mse[k][1].toFixed(2)}</b> (noise floor ${(SIGMA * SIGMA).toFixed(2)}); ` +
+    `the best test MSE on this grid is ${mse[best][1].toFixed(2)} at λ = ${LAMS[best].toPrecision(2)}. ` +
+    `Push the correlation to 0.99 and compare how ridge and lasso treat x₁ and x₂.`;
+}
+document.querySelectorAll("input[name=pen]").forEach(r => r.onchange = () => { fitPaths(); draw(); });
+$("lam").oninput = draw;
+$("rho").oninput = () => { build(); draw(); };
+$("resample").onclick = () => { seed += 1; build(); draw(); };
+window.addEventListener("resize", draw);
+build(); draw();
+</script>
+</body>
+</html>

@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Least squares, least absolute deviations and Huber</title>
+<style>
+  :root { --bg:#fdfcf8; --text:#2d2a23; --muted:#7a7266; --accent:#a66b4f; --line:#e6e0d4; --card:#f6f2ea; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:14px 16px; background:var(--bg); color:var(--text); font:13.5px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  .row { display:flex; flex-wrap:wrap; gap:8px 18px; align-items:center; margin-bottom:10px; }
+  label { display:inline-flex; gap:5px; align-items:center; cursor:pointer; }
+  button { font:inherit; padding:4px 10px; border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--text); cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  input[type=range] { width:140px; accent-color:var(--accent); vertical-align:middle; }
+  canvas { width:100%; display:block; border:1px solid var(--line); border-radius:8px; background:#fff; cursor:crosshair; touch-action:none; }
+  .legend { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px 14px; margin-top:8px; font-variant-numeric:tabular-nums; }
+  @media (max-width:600px){ .legend{ grid-template-columns:1fr; } }
+  .sw { display:inline-block; width:18px; height:3px; border-radius:2px; vertical-align:middle; margin-right:5px; }
+  .status { margin-top:10px; padding:9px 12px; border-radius:8px; background:var(--card); border-left:3px solid var(--accent); }
+</style>
+</head>
+<body>
+<div class="row">
+  <label><input type="checkbox" id="sMSE" checked> squared (OLS)</label>
+  <label><input type="checkbox" id="sMAE" checked> absolute (LAD)</label>
+  <label><input type="checkbox" id="sHub" checked> Huber, δ = <b id="dL"></b></label>
+  <input type="range" id="delta" min="0.1" max="3" step="0.05" value="1">
+  <label><input type="checkbox" id="sq"> draw the squares OLS minimises</label>
+</div>
+<div class="row">
+  <button id="outY">add an outlier in y</button>
+  <button id="outX">add a high-leverage outlier</button>
+  <button id="reset">reset</button>
+  <span style="color:var(--muted)">click to add a point, drag to move, double-click to delete</span>
+</div>
+<canvas id="c"></canvas>
+<div class="legend" id="legend"></div>
+<div class="status" id="status"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const XMAX = 10, YMAX = 7.5;
+const COL = { mse:"#a66b4f", mae:"#4f7aa6", hub:"#5c8a6a" };
+let pts = [], drag = -1, last = -1;
+
+function rngFrom(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+function gauss(r) { return Math.sqrt(-2 * Math.log(r() + 1e-12)) * Math.cos(2 * Math.PI * r()); }
+function reset() {
+  const r = rngFrom(7); pts = [];
+  for (let i = 0; i < 18; i++) { const x = 1 + 7 * r(); pts.push([x, 1.2 + 0.55 * x + 0.45 * gauss(r)]); }
+  last = -1; draw();
+}
+
+function ols(P) {
+  const n = P.length, mx = P.reduce((s, p) => s + p[0], 0) / n, my = P.reduce((s, p) => s + p[1], 0) / n;
+  let sxy = 0, sxx = 0; for (const [x, y] of P) { sxy += (x - mx) * (y - my); sxx += (x - mx) ** 2; }
+  const b = sxx > 1e-12 ? sxy / sxx : 0; return [my - b * mx, b];
+}
+function wls(P, w) {
+  let sw = 0, mx = 0, my = 0; P.forEach(([x, y], i) => { sw += w[i]; mx += w[i] * x; my += w[i] * y; }); mx /= sw; my /= sw;
+  let sxy = 0, sxx = 0; P.forEach(([x, y], i) => { sxy += w[i] * (x - mx) * (y - my); sxx += w[i] * (x - mx) ** 2; });
+  const b = sxx > 1e-12 ? sxy / sxx : 0; return [my - b * mx, b];
+}
+function lad(P) {                    // the L1 line passes through two data points: try them all
+  let best = ols(P), bv = Infinity;
+  for (let i = 0; i < P.length; i++) for (let j = i + 1; j < P.length; j++) {
+    const dx = P[j][0] - P[i][0]; if (Math.abs(dx) < 1e-9) continue;
+    const b = (P[j][1] - P[i][1]) / dx, a = P[i][1] - b * P[i][0];
+    let v = 0; for (const [x, y] of P) v += Math.abs(y - a - b * x);
+    if (v < bv) { bv = v; best = [a, b]; }
+  }
+  return best;
+}
+function huber(P, d) {               // iteratively reweighted least squares
+  let ab = lad(P);
+  for (let k = 0; k < 60; k++) {
+    const w = P.map(([x, y]) => { const r = Math.abs(y - ab[0] - ab[1] * x); return r <= d ? 1 : d / r; });
+    ab = wls(P, w);
+  }
+  return ab;
+}
+function leverage(P, i) {
+  const n = P.length, mx = P.reduce((s, p) => s + p[0], 0) / n;
+  const sxx = P.reduce((s, p) => s + (p[0] - mx) ** 2, 0);
+  return 1 / n + (P[i][0] - mx) ** 2 / sxx;
+}
+
+let g, W, H;
+function size() {
+  const c = $("c"), r = window.devicePixelRatio || 1; W = c.clientWidth; H = W * YMAX / XMAX;
+  c.width = W * r; c.height = H * r; c.style.height = H + "px"; g = c.getContext("2d"); g.setTransform(r, 0, 0, r, 0, 0);
+}
+const sx = x => x / XMAX * W, sy = y => H - y / YMAX * H;
+const ix = px => px / W * XMAX, iy = py => (H - py) / H * YMAX;
+
+function line(ab, col, width) {
+  g.strokeStyle = col; g.lineWidth = width; g.beginPath(); g.moveTo(sx(0), sy(ab[0])); g.lineTo(sx(XMAX), sy(ab[0] + ab[1] * XMAX)); g.stroke();
+}
+function draw() {
+  size(); $("dL").textContent = (+$("delta").value).toFixed(2);
+  g.clearRect(0, 0, W, H);
+  g.strokeStyle = "#f0ebe1"; g.lineWidth = 1;
+  for (let k = 1; k < XMAX; k++) { g.beginPath(); g.moveTo(sx(k), 0); g.lineTo(sx(k), H); g.stroke(); }
+  for (let k = 1; k < YMAX; k++) { g.beginPath(); g.moveTo(0, sy(k)); g.lineTo(W, sy(k)); g.stroke(); }
+  if (pts.length < 2) { $("legend").innerHTML = ""; $("status").textContent = "Add at least two points."; return; }
+  const fM = ols(pts), fA = lad(pts), fH = huber(pts, +$("delta").value);
+  if ($("sq").checked) {
+    g.fillStyle = "rgba(166,107,79,.10)"; g.strokeStyle = "rgba(166,107,79,.45)"; g.lineWidth = 1;
+    for (const [x, y] of pts) {               // side = |residual|; axes share one scale, so it's a true square
+      const yh = fM[0] + fM[1] * x, s = Math.abs(y - yh) / XMAX * W;
+      g.beginPath(); g.rect(sx(x), sy(Math.max(y, yh)), s, s); g.fill(); g.stroke();
+    }
+  } else {
+    g.strokeStyle = "rgba(122,114,102,.45)"; g.lineWidth = 1;
+    for (const [x, y] of pts) { g.beginPath(); g.moveTo(sx(x), sy(y)); g.lineTo(sx(x), sy(fM[0] + fM[1] * x)); g.stroke(); }
+  }
+  if ($("sMAE").checked) line(fA, COL.mae, 2.2);
+  if ($("sHub").checked) line(fH, COL.hub, 2.2);
+  if ($("sMSE").checked) line(fM, COL.mse, 2.6);
+  pts.forEach(([x, y], i) => { g.fillStyle = i === last ? "#a66b4f" : "#2d2a23"; g.beginPath(); g.arc(sx(x), sy(y), i === last ? 6 : 4.5, 0, 7); g.fill(); });
+
+  const sse = f => pts.reduce((s, [x, y]) => s + (y - f[0] - f[1] * x) ** 2, 0);
+  const sae = f => pts.reduce((s, [x, y]) => s + Math.abs(y - f[0] - f[1] * x), 0);
+  const fmt = f => `slope <b>${f[1].toFixed(3)}</b>, intercept ${f[0].toFixed(2)}`;
+  $("legend").innerHTML =
+    `<div><span class="sw" style="background:${COL.mse}"></span>OLS: ${fmt(fM)}</div>` +
+    `<div><span class="sw" style="background:${COL.mae}"></span>LAD: ${fmt(fA)}</div>` +
+    `<div><span class="sw" style="background:${COL.hub}"></span>Huber: ${fmt(fH)}</div>`;
+  let msg = `${pts.length} points. Sum of squared residuals: OLS ${sse(fM).toFixed(2)} (the smallest possible), LAD ${sse(fA).toFixed(2)}. ` +
+            `Sum of absolute residuals: LAD ${sae(fA).toFixed(2)} (the smallest possible), OLS ${sae(fM).toFixed(2)}.`;
+  if (last >= 0 && last < pts.length) {
+    const h = leverage(pts, last), mean = 2 / pts.length;
+    msg += ` <br>Highlighted point: leverage h = <b>${h.toFixed(3)}</b> (average is ${mean.toFixed(3)})` +
+           (h > 2 * mean ? ", more than twice the average: it can drag the OLS line, and the LAD line too." : ".");
+  }
+  $("status").innerHTML = msg;
+}
+
+function hit(px, py) { for (let i = pts.length - 1; i >= 0; i--) if (Math.hypot(sx(pts[i][0]) - px, sy(pts[i][1]) - py) < 10) return i; return -1; }
+const c = $("c");
+c.addEventListener("pointerdown", e => {
+  const r = c.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+  let i = hit(px, py);
+  if (i < 0) { pts.push([ix(px), iy(py)]); i = pts.length - 1; }
+  drag = i; last = i; c.setPointerCapture(e.pointerId); draw();
+});
+c.addEventListener("pointermove", e => {
+  if (drag < 0) return; const r = c.getBoundingClientRect();
+  pts[drag] = [Math.min(XMAX, Math.max(0, ix(e.clientX - r.left))), Math.min(YMAX, Math.max(0, iy(e.clientY - r.top)))]; draw();
+});
+c.addEventListener("pointerup", () => drag = -1);
+c.addEventListener("dblclick", e => {
+  const r = c.getBoundingClientRect(), i = hit(e.clientX - r.left, e.clientY - r.top);
+  if (i >= 0) { pts.splice(i, 1); last = -1; draw(); }
+});
+$("outY").onclick = () => { pts.push([4.5, 7.2]); last = pts.length - 1; draw(); };
+$("outX").onclick = () => { pts.push([9.7, 0.4]); last = pts.length - 1; draw(); };
+$("reset").onclick = reset;
+["sMSE", "sMAE", "sHub", "sq"].forEach(id => $(id).onchange = draw);
+$("delta").oninput = draw;
+window.addEventListener("resize", draw);
+reset();
+</script>
+</body>
+</html>

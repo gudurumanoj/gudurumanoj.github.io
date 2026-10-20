@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logistic regression on separable data</title>
+<style>
+  :root { --bg:#fdfcf8; --text:#2d2a23; --muted:#7a7266; --accent:#a66b4f; --line:#e6e0d4; --card:#f6f2ea; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:14px 16px; background:var(--bg); color:var(--text); font:13.5px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  .controls { display:grid; grid-template-columns:1fr 1fr; gap:8px 18px; margin-bottom:8px; }
+  @media (max-width:600px){ .controls{ grid-template-columns:1fr; } }
+  .ctl .top { display:flex; justify-content:space-between; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; margin-bottom:10px; }
+  label { display:inline-flex; gap:5px; align-items:center; cursor:pointer; }
+  button { font:inherit; padding:4px 12px; border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--text); cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  .panels { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:600px){ .panels{ grid-template-columns:1fr; } }
+  canvas { width:100%; display:block; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  #c { cursor:crosshair; }
+  h3 { margin:0 0 4px; font-size:12px; font-weight:600; color:var(--muted); }
+  .status { margin-top:10px; padding:9px 12px; border-radius:8px; background:var(--card); border-left:3px solid var(--accent); font-variant-numeric:tabular-nums; }
+</style>
+</head>
+<body>
+<div class="controls">
+  <div class="ctl"><div class="top"><span>Gap between the classes</span><b id="gapL"></b></div><input type="range" id="gap" min="0" max="3" step="0.1" value="2.2"></div>
+  <div class="ctl"><div class="top"><span>L2 penalty λ</span><b id="lamL"></b></div><input type="range" id="lam" min="0" max="4" step="1" value="0"></div>
+</div>
+<div class="row">
+  <button id="play">pause</button><button id="restart">restart training</button>
+  <span>clicking adds a point of class:</span>
+  <label><input type="radio" name="cls" value="1" checked> orange (1)</label>
+  <label><input type="radio" name="cls" value="0"> blue (0)</label>
+</div>
+<div class="panels">
+  <div><h3>Data and the predicted probability</h3><canvas id="c"></canvas></div>
+  <div><h3>‖w‖ against training steps (log scale)</h3><canvas id="chart"></canvas></div>
+</div>
+<div class="status" id="status"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const LAMS = [0, 1e-4, 1e-3, 1e-2, 1e-1], R = 4, ETA = 0.5, MAXSTEP = 1e6;
+const ORANGE = [166, 107, 79], BLUE = [79, 122, 166];
+let base = [], extra = [], X = [], Y = [], w = [0, 0, 0], step = 0, hist = [], playing = true, sepCache = null;
+
+function rngFrom(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+function gauss(r) { return Math.sqrt(-2 * Math.log(r() + 1e-12)) * Math.cos(2 * Math.PI * r()); }
+(function () { const r = rngFrom(3); for (let i = 0; i < 40; i++) base.push([gauss(r), gauss(r), i < 20 ? 1 : 0]); })();
+function buildData() {
+  const gap = +$("gap").value, m = gap / Math.SQRT2;
+  X = []; Y = [];
+  for (const [a, b, c] of base) { const s = c ? 1 : -1; X.push([0.75 * a + s * m * 0.9, 0.75 * b + s * m * 0.6]); Y.push(c); }
+  for (const [a, b, c] of extra) { X.push([a, b]); Y.push(c); }
+  sepCache = null;
+}
+const sig = z => z >= 0 ? 1 / (1 + Math.exp(-z)) : Math.exp(z) / (1 + Math.exp(z));
+function gdStep() {
+  const lam = LAMS[+$("lam").value], g = [0, 0, 0], n = X.length;
+  for (let i = 0; i < n; i++) { const e = sig(w[0] * X[i][0] + w[1] * X[i][1] + w[2]) - Y[i]; g[0] += e * X[i][0]; g[1] += e * X[i][1]; g[2] += e; }
+  w[0] -= ETA * (g[0] / n + lam * w[0]); w[1] -= ETA * (g[1] / n + lam * w[1]); w[2] -= ETA * g[2] / n;
+}
+function loss() {
+  let s = 0; for (let i = 0; i < X.length; i++) { const z = w[0] * X[i][0] + w[1] * X[i][1] + w[2];
+    s += (z > 0 ? z + Math.log1p(Math.exp(-z)) : Math.log1p(Math.exp(z))) - Y[i] * z; }
+  return s / X.length;
+}
+function separable() {                   // a perceptron converges iff the data is linearly separable
+  if (sepCache !== null) return sepCache;
+  let v = [0, 0, 0];
+  for (let ep = 0; ep < 2000; ep++) { let mistakes = 0;
+    for (let i = 0; i < X.length; i++) { const s = Y[i] ? 1 : -1;
+      if (s * (v[0] * X[i][0] + v[1] * X[i][1] + v[2]) <= 0) { v[0] += s * X[i][0]; v[1] += s * X[i][1]; v[2] += s; mistakes++; } }
+    if (!mistakes) return sepCache = true; }
+  return sepCache = false;
+}
+
+function canvas(id) {
+  const c = $(id), r = window.devicePixelRatio || 1, W = c.clientWidth;
+  c.width = W * r; c.height = W * r; c.style.height = W + "px";
+  const g = c.getContext("2d"); g.setTransform(r, 0, 0, r, 0, 0); return [g, W];
+}
+function drawData() {
+  const [g, W] = canvas("c"), s = x => (x + R) / (2 * R) * W, sy = y => (R - y) / (2 * R) * W, N = 48, cell = W / N;
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+    const x = -R + (i + 0.5) / N * 2 * R, y = R - (j + 0.5) / N * 2 * R, p = sig(w[0] * x + w[1] * y + w[2]);
+    const c = p > 0.5 ? ORANGE : BLUE, a = Math.abs(p - 0.5) * 0.7;
+    g.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${a})`; g.fillRect(i * cell, j * cell, cell + 0.5, cell + 0.5);
+  }
+  if (Math.abs(w[1]) > 1e-9 || Math.abs(w[0]) > 1e-9) {
+    g.strokeStyle = "#2d2a23"; g.lineWidth = 1.5; g.beginPath();
+    if (Math.abs(w[1]) > Math.abs(w[0])) { const yAt = x => -(w[0] * x + w[2]) / w[1]; g.moveTo(s(-R), sy(yAt(-R))); g.lineTo(s(R), sy(yAt(R))); }
+    else { const xAt = y => -(w[1] * y + w[2]) / w[0]; g.moveTo(s(xAt(-R)), sy(-R)); g.lineTo(s(xAt(R)), sy(R)); }
+    g.stroke();
+  }
+  for (let i = 0; i < X.length; i++) { const c = Y[i] ? ORANGE : BLUE;
+    g.fillStyle = `rgb(${c})`; g.beginPath(); g.arc(s(X[i][0]), sy(X[i][1]), 4.5, 0, 7); g.fill(); g.strokeStyle = "#fff"; g.lineWidth = 1.2; g.stroke(); }
+}
+function drawChart() {
+  const [g, W] = canvas("chart"), H = W, pad = 30;
+  const ymax = Math.max(4, ...hist.map(h => h[1])) * 1.1;
+  const sx = t => pad + t / 6 * (W - pad - 10), sy = v => H - pad - v / ymax * (H - pad - 10);
+  g.strokeStyle = "#e6e0d4"; g.fillStyle = "#7a7266"; g.font = "11px system-ui"; g.lineWidth = 1;
+  for (let t = 0; t <= 6; t++) { g.beginPath(); g.moveTo(sx(t), sy(0)); g.lineTo(sx(t), sy(ymax)); g.stroke(); g.fillText("10" + "⁰¹²³⁴⁵⁶"[t], sx(t) - 7, H - 12); }
+  g.fillText("step", W - 36, H - 24); g.fillText(ymax.toFixed(0), 4, sy(ymax) + 10); g.fillText("0", 14, sy(0));
+  g.strokeStyle = "#a66b4f"; g.lineWidth = 2.4; g.beginPath();
+  hist.forEach(([t, v], k) => k ? g.lineTo(sx(t), sy(v)) : g.moveTo(sx(t), sy(v))); g.stroke();
+}
+function status() {
+  const lam = LAMS[+$("lam").value], nw = Math.hypot(w[0], w[1]), sep = separable();
+  let msg = `Step <b>${Math.round(step).toLocaleString()}</b>: ‖w‖ = <b>${nw.toFixed(2)}</b>, training loss ${loss().toExponential(2)}. `;
+  if (sep && lam === 0) msg += `The classes are <b>linearly separable</b>, so making w longer always lowers the loss: there is no finite minimiser, and ‖w‖ keeps rising with no sign of levelling off (it grows roughly like log t, so every factor of 10 in steps adds a few more units). The probability band shrinks to a hard edge. Raise λ to stop it.`;
+  else if (sep) msg += `The classes are separable, but the L2 penalty makes long w expensive, so ‖w‖ levels off and the probabilities stay soft.`;
+  else msg += `The classes overlap, so some points are always on the wrong side. Pushing ‖w‖ up would make those mistakes infinitely expensive, so a finite best w exists and ‖w‖ levels off even with λ = 0.`;
+  $("status").innerHTML = msg;
+}
+function draw() { $("gapL").textContent = (+$("gap").value).toFixed(1); const l = LAMS[+$("lam").value]; $("lamL").textContent = l ? l.toExponential(0) : "0";
+  drawData(); drawChart(); status(); }
+function restart() { w = [0, 0, 0]; step = 0; hist = []; draw(); }
+function frame() {
+  if (playing && step < MAXSTEP) {
+    const target = Math.min(MAXSTEP, Math.max(step + 1, step * 1.025));   // geometric: equal time per decade
+    while (step < target) { gdStep(); step++; }
+    hist.push([Math.log10(step), Math.hypot(w[0], w[1])]);
+    draw();
+  }
+  requestAnimationFrame(frame);
+}
+$("c").addEventListener("pointerdown", e => {
+  const c = $("c"), r = c.getBoundingClientRect(), cls = +document.querySelector("input[name=cls]:checked").value;
+  extra.push([-R + (e.clientX - r.left) / r.width * 2 * R, R - (e.clientY - r.top) / r.height * 2 * R, cls]); buildData(); restart();
+});
+$("gap").oninput = () => { buildData(); restart(); };
+$("lam").oninput = restart;
+$("restart").onclick = restart;
+$("play").onclick = () => { playing = !playing; $("play").textContent = playing ? "pause" : "play"; };
+window.addEventListener("resize", draw);
+buildData(); restart(); requestAnimationFrame(frame);
+</script>
+</body>
+</html>
