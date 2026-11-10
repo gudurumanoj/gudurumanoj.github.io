@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hard and soft clustering</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; background: #fdfcf8; color: #2d2a23; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 14px; }
+    h1 { font-size: 1rem; margin: 0 0 4px; }
+    p { margin: 0 0 10px; font-size: .84rem; line-height: 1.35; }
+    .panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .panel { min-width: 0; }
+    .panel strong { display: block; font-size: .83rem; margin-bottom: 4px; }
+    canvas { width: 100%; height: auto; display: block; border: 1px solid #c9c4b8; border-radius: 8px; touch-action: none; cursor: crosshair; }
+    .controls { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 14px; margin-top: 12px; }
+    label { font-size: .78rem; font-weight: 600; }
+    label span { font-variant-numeric: tabular-nums; }
+    input { display: block; width: 100%; accent-color: #a66b4f; margin: 5px 0 0; }
+    .readout { background: #f4eee6; border-radius: 6px; padding: 8px 10px; margin: 10px 0 0; font-variant-numeric: tabular-nums; }
+    .note { color: #5b574d; margin: 6px 0 0; }
+    @media (max-width: 620px) {
+      body { padding: 10px; }
+      .panels { gap: 7px; }
+      .controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <h1>One geometry, two kinds of assignment</h1>
+  <p>Move A and B or change the common standard deviation σ. Click either plot to move the probe. A and B have equal mixture weights.</p>
+  <div class="panels">
+    <div class="panel"><strong>K-means: nearest center</strong><canvas id="hard" width="400" height="210" role="img" aria-label="Hard assignment regions for two centers; use the sliders below to change positions"></canvas></div>
+    <div class="panel"><strong>GMM: responsibility for A</strong><canvas id="soft" width="400" height="210" role="img" aria-label="Probability blend for two equal-weight spherical Gaussians; use the sliders below to change positions and standard deviation"></canvas></div>
+  </div>
+  <div class="controls">
+    <label>A position: <span id="aValue">2.5</span><input id="a" type="range" min="0.5" max="9.5" step="0.1" value="2.5"></label>
+    <label>B position: <span id="bValue">7.5</span><input id="b" type="range" min="0.5" max="9.5" step="0.1" value="7.5"></label>
+    <label>σ: <span id="sigmaValue">1.2</span><input id="sigma" type="range" min="0.25" max="3" step="0.05" value="1.2"></label>
+    <label>Probe position: <span id="probeValue">4.2</span><input id="probe" type="range" min="0" max="10" step="0.1" value="4.2"></label>
+  </div>
+  <p id="readout" class="readout" aria-live="polite"></p>
+  <p class="note">Green indicates A, terracotta indicates B, and a blended color indicates uncertainty. The dots are fixed example observations; they are not fitted in this demo.</p>
+  <script>
+    (() => {
+      const W = 400, H = 210;
+      const hard = document.getElementById('hard');
+      const soft = document.getElementById('soft');
+      const controls = Object.fromEntries(['a', 'b', 'sigma', 'probe'].map(id => [id, document.getElementById(id)]));
+      const dots = [[1.4, .7], [2.1, 1.9], [3, 3.5], [3.5, .9], [6, 3.6], [7.1, 1.3], [8, 2.9], [8.8, .8]];
+      const aColor = [111, 164, 143], bColor = [201, 139, 108];
+      const state = () => Object.fromEntries(Object.entries(controls).map(([k, v]) => [k, Number(v.value)]));
+      const px = x => x * W / 10;
+      const py = y => y * H / 5;
+      function responsibility(x, a, b, sigma) {
+        const la = -((x - a) ** 2) / (2 * sigma * sigma);
+        const lb = -((x - b) ** 2) / (2 * sigma * sigma);
+        const m = Math.max(la, lb);
+        const ea = Math.exp(la - m), eb = Math.exp(lb - m);
+        return ea / (ea + eb);
+      }
+      function draw(canvas, isSoft, s) {
+        const ctx = canvas.getContext('2d');
+        const img = ctx.createImageData(W, H);
+        for (let x = 0; x < W; x++) {
+          const unitX = x * 10 / W;
+          const p = isSoft ? responsibility(unitX, s.a, s.b, s.sigma) : (Math.abs(unitX - s.a) <= Math.abs(unitX - s.b) ? 1 : 0);
+          for (let y = 0; y < H; y++) {
+            const idx = 4 * (y * W + x);
+            for (let c = 0; c < 3; c++) img.data[idx + c] = Math.round(247 * .36 + (p * aColor[c] + (1 - p) * bColor[c]) * .64);
+            img.data[idx + 3] = 255;
+          }
+        }
+        ctx.putImageData(img, 0, 0);
+        ctx.strokeStyle = '#9b968b';
+        ctx.lineWidth = 1;
+        for (let i = 1; i < 10; i++) {
+          ctx.beginPath(); ctx.moveTo(px(i), 0); ctx.lineTo(px(i), H); ctx.stroke();
+        }
+        for (const [x, y] of dots) {
+          ctx.beginPath(); ctx.arc(px(x), py(y), 3.4, 0, 2 * Math.PI);
+          ctx.fillStyle = '#2d2a23'; ctx.fill();
+        }
+        for (const [letter, x, color] of [['A', s.a, '#32745f'], ['B', s.b, '#a66b4f']]) {
+          ctx.beginPath(); ctx.arc(px(x), H / 2, 10, 0, 2 * Math.PI);
+          ctx.fillStyle = '#fdfcf8'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = color; ctx.stroke();
+          ctx.fillStyle = '#2d2a23'; ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(letter, px(x), H / 2);
+        }
+        ctx.beginPath(); ctx.arc(px(s.probe), H / 2 + 27, 6, 0, 2 * Math.PI);
+        ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#2d2a23'; ctx.stroke();
+      }
+      function render() {
+        const s = state();
+        for (const [key, value] of Object.entries(s)) document.getElementById(key + 'Value').textContent = value.toFixed(key === 'sigma' ? 2 : 1);
+        draw(hard, false, s); draw(soft, true, s);
+        const hardChoice = Math.abs(s.probe - s.a) <= Math.abs(s.probe - s.b) ? 'A' : 'B';
+        const p = responsibility(s.probe, s.a, s.b, s.sigma);
+        document.getElementById('readout').textContent = `At x = ${s.probe.toFixed(1)}: k-means chooses ${hardChoice}; GMM P(A | x) = ${p.toFixed(3)}, P(B | x) = ${(1 - p).toFixed(3)}.`;
+      }
+      for (const el of Object.values(controls)) el.addEventListener('input', render);
+      for (const canvas of [hard, soft]) {
+        let dragging = null;
+        const localX = event => Math.max(0, Math.min(10, (event.clientX - canvas.getBoundingClientRect().left) * 10 / canvas.getBoundingClientRect().width));
+        canvas.addEventListener('pointerdown', event => {
+          const x = localX(event), s = state();
+          dragging = Math.abs(x - s.a) < .4 ? 'a' : Math.abs(x - s.b) < .4 ? 'b' : 'probe';
+          canvas.setPointerCapture(event.pointerId);
+          controls[dragging].value = x.toFixed(1); render();
+        });
+        canvas.addEventListener('pointermove', event => {
+          if (!dragging) return;
+          controls[dragging].value = localX(event).toFixed(1); render();
+        });
+        for (const name of ['pointerup', 'pointercancel']) canvas.addEventListener(name, () => { dragging = null; });
+      }
+      render();
+    })();
+  </script>
+</body>
+</html>
