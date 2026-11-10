@@ -3,7 +3,7 @@ title: "man'log"
 intro: |
   I'm part of the AI research team at Fractal, working on language model post-training and agents. Previously, I worked on multilingual models and synthetic training data at OLA Krutrim. I studied computer science at IIT Bombay.
 
-  I'm interested in how language models learn, reason, and use tools. My recent work includes test-time aggregation and automating post-training experiments.
+  I'm interested in how language models learn, reason, and build useful systems around LMs. My recent work includes test-time aggregation, automating post-training experiments.
 activity:
   - date: "2026-07"
     title: "To Aggregate or Not to Aggregate?"
@@ -33,8 +33,8 @@ activity:
     note: "Integral calculus and differential equations at IIT Bombay."
 ---
 
-I also enjoy math and competitive programming. This is where I keep my [blog](/blog/): notes on things I'm learning and working through.
+I also enjoy math, competitive programming and systems. This is where I keep my [blog](/blog/): notes on random things I check.
 
 ## Away from the keyboard
 
-I enjoy playing cricket and watching anime. *Naruto*, *Attack on Titan*, and *Haikyu!!* are a few favorites.
+I enjoy playing cricket and watching anime. *Naruto*, *AoT*, and *Haikyu!!* are a few favorites.
