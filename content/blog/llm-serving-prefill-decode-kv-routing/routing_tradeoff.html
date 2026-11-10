@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>When does cache locality pay?</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; background: #fdfcf8; color: #2d2a23; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 1rem; }
+    main { max-width: 720px; margin: auto; }
+    h1 { font-size: 1.1rem; margin: 0 0 .5rem; }
+    p { margin: .4rem 0 1rem; line-height: 1.4; }
+    .controls { display: grid; gap: .75rem; }
+    label { display: grid; grid-template-columns: 1fr auto; gap: .25rem .75rem; font-weight: 600; }
+    input { grid-column: 1 / -1; accent-color: #a66b4f; width: 100%; }
+    output { font-variant-numeric: tabular-nums; }
+    .row { display: grid; grid-template-columns: 7.5rem 1fr 3.5rem; gap: .5rem; align-items: center; margin-top: .8rem; }
+    .track { height: 1.5rem; border-radius: .3rem; background: #ece6dd; overflow: hidden; }
+    .fill { height: 100%; min-width: .15rem; border-radius: .3rem; background: #a66b4f; transition: width .12s linear; }
+    .cold { background: #688d86; }
+    strong { color: #824b32; }
+    .formula { font-size: .88rem; color: #5d574f; }
+    @media (max-width: 480px) { .row { grid-template-columns: 5.8rem 1fr 3rem; font-size: .88rem; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>When does locality pay?</h1>
+  <p>Five blocks; the hot replica has the first three. Recomputing one block costs 4 simulated ms. The cold replica waits 2 ms and has no blocks.</p>
+  <div class="controls">
+    <label for="queue">Hot replica queue <output id="queue-value">5 ms</output><input id="queue" type="range" min="0" max="30" value="5"></label>
+    <label for="restore">Hot replica tier restore <output id="restore-value">0 ms</output><input id="restore" type="range" min="0" max="20" value="0"></label>
+  </div>
+  <div class="row"><span>Hot replica A</span><div class="track"><div class="fill" id="hot-bar"></div></div><output id="hot-cost">13 ms</output></div>
+  <div class="row"><span>Cold replica B</span><div class="track"><div class="fill cold" id="cold-bar"></div></div><output id="cold-cost">22 ms</output></div>
+  <p id="decision" aria-live="polite"></p>
+  <p class="formula">Estimated A = queue + 2 × 4 + restore; B = 2 + 5 × 4 = 22 ms. Assumed costs illustrate a decision; they are not measured GPU latencies.</p>
+</main>
+<script>
+  const queue = document.getElementById('queue');
+  const restore = document.getElementById('restore');
+  function update() {
+    const q = Number(queue.value);
+    const r = Number(restore.value);
+    const hot = q + 8 + r;
+    const cold = 22;
+    document.getElementById('queue-value').textContent = `${q} ms`;
+    document.getElementById('restore-value').textContent = `${r} ms`;
+    document.getElementById('hot-cost').textContent = `${hot} ms`;
+    document.getElementById('cold-cost').textContent = `${cold} ms`;
+    document.getElementById('hot-bar').style.width = `${Math.min(100, hot / 50 * 100)}%`;
+    document.getElementById('cold-bar').style.width = `${cold / 50 * 100}%`;
+    document.getElementById('decision').innerHTML = hot < cold
+        ? '<strong>Choose A.</strong> Its prefix saves enough prefill to give it the lower total estimated cost.'
+      : hot > cold
+        ? '<strong>Choose B.</strong> Its total estimated cost is lower after queue, recomputation, and restore.'
+        : '<strong>Tie.</strong> Either route has the same estimated cost.';
+  }
+  queue.addEventListener('input', update);
+  restore.addEventListener('input', update);
+  update();
+</script>
+</body>
+</html>

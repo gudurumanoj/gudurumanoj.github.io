@@ -1,125 +1,229 @@
 ---
-title: "Serving LLMs: Prefill vs Decode, PagedAttention, RadixAttention and KV-Aware Routing"
-date: 2026-10-19T18:00:00+05:30
+title: 'LLM Serving: vLLM, SGLang, KV Caches, and Distributed Inference'
+date: 2026-10-19 18:00:00+05:30
 draft: false
-topics: ["infra", "ml"]
-tags: ["inference", "kv-cache", "interview"]
-summary: "Why prefill is compute-bound and decode is memory-bound, what TTFT, ITL, P99 and goodput really measure, how vLLM's PagedAttention and continuous batching beat a plain Hugging Face generate loop, how SGLang's radix tree turns shared prefixes into free work, and how Dynamo, llm-d and Baseten route on prefixes and split prefill from decode across a cluster. With the back-of-envelope maths, tested Python, and the industry numbers."
+topics:
+- infra
+- ml
+tags:
+- inference
+- kv-cache
+- interview
+summary: From prefill and decode to vLLM blocks, SGLang radix trees, distributed KV routing, cross-node handoffs, and agent working sets. With latency maths, runnable code, diagrams, and workload-specific tradeoffs.
 references:
-  - id: vllm-blog
-    text: 'Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng, Cody Yu, Joey Gonzalez, Hao Zhang, Ion Stoica. "vLLM: Easy, Fast, and Cheap LLM Serving with PagedAttention." vLLM Blog, 2023.'
-    url: https://blog.vllm.ai/2023/06/20/vllm.html
-  - id: pagedattention
-    text: 'Woosuk Kwon et al. "Efficient Memory Management for Large Language Model Serving with PagedAttention." SOSP 2023.'
-    url: https://arxiv.org/abs/2309.06180
-  - id: orca
-    text: 'Gyeong-In Yu, Joo Seong Jeong, Geon-Woo Kim, Soojeong Kim, Byung-Gon Chun. "Orca: A Distributed Serving System for Transformer-Based Generative Models." OSDI 2022.'
-    url: https://www.usenix.org/conference/osdi22/presentation/yu
-  - id: anyscale
-    text: 'Cade Daniel, Chen Shen, Eric Liang, Richard Liaw. "How continuous batching enables 23x throughput in LLM inference while reducing p50 latency." Anyscale, 2023.'
-    url: https://www.anyscale.com/blog/continuous-batching-llm-inference
-  - id: hf-cb
-    text: 'Rémi Ouazan Reboul, Arthur Zucker, Luc Georges. "Continuous batching from first principles." Hugging Face Blog, 2025.'
-    url: https://huggingface.co/blog/continuous_batching
-  - id: hf-cb-docs
-    text: 'Hugging Face Transformers documentation. "Continuous batching."'
-    url: https://huggingface.co/docs/transformers/main/en/continuous_batching
-  - id: vllm-apc
-    text: 'vLLM documentation. "Automatic Prefix Caching" (design doc).'
-    url: https://docs.vllm.ai/en/latest/design/prefix_caching.html
-  - id: vllm-v1
-    text: 'vLLM Team. "vLLM V1: A Major Upgrade to vLLM''s Core Architecture." vLLM Blog, 2025.'
-    url: https://blog.vllm.ai/2025/01/27/v1-alpha-release.html
-  - id: sarathi
-    text: 'Amey Agrawal et al. "Taming Throughput-Latency Tradeoff in LLM Inference with Sarathi-Serve." OSDI 2024.'
-    url: https://arxiv.org/abs/2403.02310
-  - id: sglang-blog
-    text: 'Lianmin Zheng, Liangsheng Yin, Zhiqiang Xie, Jeff Huang, Chuyue Sun, Cody Hao Yu, Shiyi Cao, Christos Kozyrakis, Ion Stoica, Joseph E. Gonzalez, Clark Barrett, Ying Sheng. "Fast and Expressive LLM Inference with RadixAttention and SGLang." LMSYS Blog, 2024.'
-    url: https://lmsys.org/blog/2024-01-17-sglang/
-  - id: sglang-paper
-    text: 'Lianmin Zheng et al. "SGLang: Efficient Execution of Structured Language Model Programs." NeurIPS 2024.'
-    url: https://arxiv.org/abs/2312.07104
-  - id: sglang-v04
-    text: 'The SGLang Team. "SGLang v0.4: Zero-Overhead Batch Scheduler, Cache-Aware Load Balancer, Faster Structured Outputs." LMSYS Blog, 2024.'
-    url: https://lmsys.org/blog/2024-12-04-sglang-v0-4/
-  - id: preble
-    text: 'Vikranth Srivatsa, Zijian He, Reyna Abhyankar, Dongming Li, Yiying Zhang. "Preble: Efficient Distributed Prompt Scheduling for LLM Serving." 2024.'
-    url: https://arxiv.org/abs/2407.00023
-  - id: distserve
-    text: 'Yinmin Zhong et al. "DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving." OSDI 2024.'
-    url: https://arxiv.org/abs/2401.09670
-  - id: splitwise
-    text: 'Pratyush Patel et al. "Splitwise: Efficient Generative LLM Inference Using Phase Splitting." ISCA 2024.'
-    url: https://arxiv.org/abs/2311.18677
-  - id: mooncake
-    text: 'Ruoyu Qin et al. "Mooncake: A KVCache-centric Disaggregated Architecture for LLM Serving." 2024.'
-    url: https://arxiv.org/abs/2407.00079
-  - id: dynamo-blog
-    text: 'Amr Elmeleegy, Harry Kim, David Zier, Kyle Kranen, Neelay Shah, Ryan Olson, Omri Kahalon. "Introducing NVIDIA Dynamo, A Low-Latency Distributed Inference Framework for Scaling Reasoning AI Models." NVIDIA Technical Blog, 2025.'
-    url: https://developer.nvidia.com/blog/introducing-nvidia-dynamo-a-low-latency-distributed-inference-framework-for-scaling-reasoning-ai-models/
-  - id: dynamo-routing
-    text: 'NVIDIA Dynamo documentation. "Routing concepts: cost model, worker selection, and routing primitives."'
-    url: https://github.com/ai-dynamo/dynamo/blob/main/docs/fern/pages/developer-guide/knowledge-base/modular-components/router/routing-concepts.md
-  - id: dynamo-tuning
-    text: 'NVIDIA Dynamo documentation. "Router configuration and tuning."'
-    url: https://github.com/ai-dynamo/dynamo/blob/main/docs/fern/pages/developer-guide/knowledge-base/modular-components/router/configuration-and-tuning.md
-  - id: dynamo-conddisagg
-    text: 'NVIDIA Dynamo documentation. "Conditional Disaggregation."'
-    url: https://github.com/ai-dynamo/dynamo/blob/main/docs/fern/pages/developer-guide/advanced-customizations/conditional-disaggregation.md
-  - id: baseten-guide
-    text: 'Varun Shenoy, Philip Kiely. "A guide to LLM inference and performance." Baseten Blog, 2023.'
-    url: https://www.baseten.co/blog/llm-transformer-inference-guide/
-  - id: baseten-kv
-    text: 'Abu Qader, Michael Feil, Rachel Rapp. "2x faster inference with KV cache-aware routing." Baseten Blog, 2025.'
-    url: https://www.baseten.co/blog/how-baseten-achieved-2x-faster-inference-with-nvidia-dynamo/
-  - id: baseten-batching
-    text: 'Matt Howard, Philip Kiely. "Continuous vs dynamic batching for AI inference." Baseten Blog, 2024.'
-    url: https://www.baseten.co/blog/continuous-vs-dynamic-batching-for-ai-inference/
-  - id: baseten-dynamo-day
-    text: 'Rachel Rapp. "The Baseten Inference Stack at NVIDIA Dynamo Day." Baseten Blog, 2026.'
-    url: https://www.baseten.co/blog/nvidia-dynamo-day-baseten-inference-stack/
-  - id: baseten-frontier
-    text: 'Philip Kiely. "The efficient frontier of LLM inference." Baseten Blog, 2026.'
-    url: https://www.baseten.co/blog/the-efficient-frontier-of-llm-inference/
-  - id: llmd-kv
-    text: 'Maroon Ayoub et al. "KV-Cache Wins You Can See: From Prefix Caching in vLLM to Distributed Scheduling with llm-d." llm-d Blog, 2025.'
-    url: https://llm-d.ai/blog/kvcache-wins-you-can-see
-  - id: llmd-sticky
-    text: 'llm-d project. "Sticky Until Saturated: Token-Aware Routing in llm-d." llm-d Blog, 2026.'
-    url: https://llm-d.ai/blog/sticky-until-saturated-token-aware-routing
-  - id: llmd-p2p
-    text: 'llm-d project. "Pull, Don''t Recompute: Peer-to-Peer KV Cache Sharing in llm-d." llm-d Blog, 2026.'
-    url: https://llm-d.ai/blog/p2p-kv-cache-sharing-llm-d
-  - id: nim-metrics
-    text: 'NVIDIA NIM Benchmarking documentation. "Metrics."'
-    url: https://docs.nvidia.com/nim/benchmarking/llm/latest/metrics.html
-  - id: nvidia-bench
-    text: 'Vinh Nguyen, Wenwen Gao, Emily Apsey, Ganesh Kudleppanavar, Neelay Shah, Elias Bermudez. "LLM Inference Benchmarking: Fundamental Concepts." NVIDIA Technical Blog, 2025.'
-    url: https://developer.nvidia.com/blog/llm-benchmarking-fundamental-concepts/
-  - id: vllm-bench
-    text: 'vLLM documentation. "vllm bench serve" (CLI reference).'
-    url: https://docs.vllm.ai/en/latest/cli/bench/serve.html
-  - id: baseten-benchmarks
-    text: 'Philip Kiely. "Understanding performance benchmarks for LLM inference." Baseten Blog, 2024.'
-    url: https://www.baseten.co/blog/understanding-performance-benchmarks-for-llm-inference/
-  - id: tail-at-scale
-    text: 'Jeffrey Dean, Luiz André Barroso. "The Tail at Scale." Communications of the ACM 56, 2013.'
-    url: https://research.google/pubs/the-tail-at-scale/
-  - id: wrk2
-    text: 'Gil Tene. "wrk2: a constant throughput, correct latency recording variant of wrk" (README, including the note on Coordinated Omission).'
-    url: https://github.com/giltene/wrk2
-  - id: prometheus-hist
-    text: 'Prometheus documentation. "Histograms and summaries."'
-    url: https://prometheus.io/docs/practices/histograms/
-  - id: h100
-    text: 'NVIDIA. "NVIDIA H100 Tensor Core GPU" (specifications).'
-    url: https://www.nvidia.com/en-us/data-center/h100/
-  - id: flashattn
-    text: 'Tri Dao, Daniel Y. Fu, Stefano Ermon, Atri Rudra, Christopher Ré. "FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness." 2022.'
-    url: https://arxiv.org/abs/2205.14135
-  - id: gqa
-    text: 'Joshua Ainslie et al. "GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints." 2023.'
-    url: https://arxiv.org/abs/2305.13245
+- id: vllm-blog
+  text: 'Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng, Cody Yu, Joey Gonzalez, Hao Zhang, Ion Stoica. "vLLM: Easy, Fast, and Cheap LLM Serving with PagedAttention." vLLM Blog, 2023.'
+  url: https://blog.vllm.ai/2023/06/20/vllm.html
+- id: pagedattention
+  text: Woosuk Kwon et al. "Efficient Memory Management for Large Language Model Serving with PagedAttention." SOSP, 2023.
+  url: https://doi.org/10.1145/3600006.3613165
+- id: orca
+  text: 'Gyeong-In Yu, Joo Seong Jeong, Geon-Woo Kim, Soojeong Kim, Byung-Gon Chun. "Orca: A Distributed Serving System for Transformer-Based Generative Models." OSDI 2022.'
+  url: https://www.usenix.org/conference/osdi22/presentation/yu
+- id: anyscale
+  text: Cade Daniel, Chen Shen, Eric Liang, Richard Liaw. "How continuous batching enables 23x throughput in LLM inference while reducing p50 latency." Anyscale, 2023.
+  url: https://www.anyscale.com/blog/continuous-batching-llm-inference
+- id: hf-cb
+  text: Rémi Ouazan Reboul, Arthur Zucker, Luc Georges. "Continuous batching from first principles." Hugging Face Blog, 2025.
+  url: https://huggingface.co/blog/continuous_batching
+- id: hf-cb-docs
+  text: Hugging Face Transformers documentation. "Continuous batching."
+  url: https://huggingface.co/docs/transformers/main/en/continuous_batching
+- id: vllm-apc
+  text: vLLM documentation. "Automatic Prefix Caching," V1 design, accessed 2026-11-10.
+  url: https://docs.vllm.ai/en/stable/design/prefix_caching/
+- id: vllm-v1
+  text: 'vLLM Team. "vLLM V1: A Major Upgrade to vLLM''s Core Architecture." vLLM Blog, 2025.'
+  url: https://blog.vllm.ai/2025/01/27/v1-alpha-release.html
+- id: sarathi
+  text: Amey Agrawal et al. "Taming Throughput-Latency Tradeoff in LLM Inference with Sarathi-Serve." OSDI 2024.
+  url: https://arxiv.org/abs/2403.02310
+- id: sglang-blog
+  text: Lianmin Zheng, Liangsheng Yin, Zhiqiang Xie, Jeff Huang, Chuyue Sun, Cody Hao Yu, Shiyi Cao, Christos Kozyrakis, Ion Stoica, Joseph E. Gonzalez, Clark Barrett, Ying Sheng. "Fast and Expressive LLM Inference with RadixAttention and SGLang." LMSYS Blog, 2024.
+  url: https://lmsys.org/blog/2024-01-17-sglang/
+- id: sglang-paper
+  text: 'Lianmin Zheng et al. "SGLang: Efficient Execution of Structured Language Model Programs." NeurIPS, 2024.'
+  url: https://arxiv.org/abs/2312.07104
+- id: sglang-v04
+  text: 'The SGLang Team. "SGLang v0.4: Zero-Overhead Batch Scheduler, Cache-Aware Load Balancer, Faster Structured Outputs." LMSYS Blog, 2024.'
+  url: https://lmsys.org/blog/2024-12-04-sglang-v0-4/
+- id: preble
+  text: 'Vikranth Srivatsa, Zijian He, Reyna Abhyankar, Dongming Li, Yiying Zhang. "Preble: Efficient Distributed Prompt Scheduling for LLM Serving." 2024.'
+  url: https://arxiv.org/abs/2407.00023
+- id: distserve
+  text: 'Yinmin Zhong et al. "DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving." OSDI 2024.'
+  url: https://arxiv.org/abs/2401.09670
+- id: splitwise
+  text: 'Pratyush Patel et al. "Splitwise: Efficient Generative LLM Inference Using Phase Splitting." ISCA 2024.'
+  url: https://arxiv.org/abs/2311.18677
+- id: mooncake
+  text: 'Ruoyu Qin et al. "Mooncake: A KVCache-centric Disaggregated Architecture for LLM Serving." 2024.'
+  url: https://arxiv.org/abs/2407.00079
+- id: dynamo-blog
+  text: NVIDIA Technical Blog. "NVIDIA Dynamo, A Low-Latency Distributed Inference Framework for Scaling Reasoning AI Models." March 18, 2025.
+  url: https://developer.nvidia.com/blog/introducing-nvidia-dynamo-a-low-latency-distributed-inference-framework-for-scaling-reasoning-ai-models/
+- id: dynamo-routing
+  text: 'NVIDIA Dynamo documentation. "Routing concepts: cost model, worker selection, and routing primitives."'
+  url: https://github.com/ai-dynamo/dynamo/blob/main/docs/fern/pages/developer-guide/knowledge-base/modular-components/router/routing-concepts.md
+- id: dynamo-tuning
+  text: NVIDIA Dynamo. "Router Configuration and Tuning," development documentation. Accessed November 10, 2026.
+  url: https://docs.dynamo.nvidia.com/dynamo/dev/knowledge-base/modular-components/router/configuration-and-tuning
+- id: dynamo-conddisagg
+  text: NVIDIA Dynamo documentation. "Conditional Disaggregation."
+  url: https://github.com/ai-dynamo/dynamo/blob/main/docs/fern/pages/developer-guide/advanced-customizations/conditional-disaggregation.md
+- id: baseten-guide
+  text: Varun Shenoy, Philip Kiely. "A guide to LLM inference and performance." Baseten Blog, 2023.
+  url: https://www.baseten.co/blog/llm-transformer-inference-guide/
+- id: baseten-kv
+  text: Baseten. "2x faster inference with KV cache-aware routing," engineering report, updated March 16, 2026.
+  url: https://www.baseten.co/blog/how-baseten-achieved-2x-faster-inference-with-nvidia-dynamo/
+- id: baseten-batching
+  text: Matt Howard, Philip Kiely. "Continuous vs dynamic batching for AI inference." Baseten Blog, 2024.
+  url: https://www.baseten.co/blog/continuous-vs-dynamic-batching-for-ai-inference/
+- id: baseten-frontier
+  text: Philip Kiely. "The efficient frontier of LLM inference." Baseten Blog, 2026.
+  url: https://www.baseten.co/blog/the-efficient-frontier-of-llm-inference/
+- id: llmd-kv
+  text: 'Maroon Ayoub et al. "KV-Cache Wins You Can See: From Prefix Caching in vLLM to Distributed Scheduling with llm-d." llm-d Blog, 2025.'
+  url: https://llm-d.ai/blog/kvcache-wins-you-can-see
+- id: llmd-sticky
+  text: 'llm-d project. "Sticky Until Saturated: Token-Aware Routing in llm-d." llm-d Blog, 2026.'
+  url: https://llm-d.ai/blog/sticky-until-saturated-token-aware-routing
+- id: llmd-p2p
+  text: 'llm-d project. "Pull, Don''t Recompute: Peer-to-Peer KV Cache Sharing in llm-d." llm-d Blog, 2026.'
+  url: https://llm-d.ai/blog/p2p-kv-cache-sharing-llm-d
+- id: nim-metrics
+  text: NVIDIA NIM Benchmarking documentation. "Metrics."
+  url: https://docs.nvidia.com/nim/benchmarking/llm/latest/metrics.html
+- id: nvidia-bench
+  text: 'Vinh Nguyen, Wenwen Gao, Emily Apsey, Ganesh Kudleppanavar, Neelay Shah, Elias Bermudez. "LLM Inference Benchmarking: Fundamental Concepts." NVIDIA Technical Blog, 2025.'
+  url: https://developer.nvidia.com/blog/llm-benchmarking-fundamental-concepts/
+- id: vllm-bench
+  text: vLLM. "vllm bench serve" CLI reference. Latest documentation, checked November 10, 2026.
+  url: https://docs.vllm.ai/en/latest/cli/bench/serve/
+- id: baseten-benchmarks
+  text: Philip Kiely. "Understanding performance benchmarks for LLM inference." Baseten Blog, 2024.
+  url: https://www.baseten.co/blog/understanding-performance-benchmarks-for-llm-inference/
+- id: tail-at-scale
+  text: Jeffrey Dean, Luiz André Barroso. "The Tail at Scale." Communications of the ACM 56, 2013.
+  url: https://research.google/pubs/the-tail-at-scale/
+- id: wrk2
+  text: 'Gil Tene. "wrk2: a constant throughput, correct latency recording variant of wrk" (README, including the note on Coordinated Omission).'
+  url: https://github.com/giltene/wrk2
+- id: prometheus-hist
+  text: Prometheus documentation. "Histograms and summaries."
+  url: https://prometheus.io/docs/practices/histograms/
+- id: h100
+  text: NVIDIA. "NVIDIA H100 Tensor Core GPU" (specifications).
+  url: https://www.nvidia.com/en-us/data-center/h100/
+- id: flashattn
+  text: 'Tri Dao, Daniel Y. Fu, Stefano Ermon, Atri Rudra, Christopher Ré. "FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness." 2022.'
+  url: https://arxiv.org/abs/2205.14135
+- id: gqa
+  text: 'Joshua Ainslie et al. "GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints." 2023.'
+  url: https://arxiv.org/abs/2305.13245
+- id: vllm-block-pool
+  text: vLLM API reference and source. "vllm.v1.core.block_pool," accessed 2026-11-10.
+  url: https://docs.vllm.ai/en/stable/api/vllm/v1/core/block_pool/
+- id: vllm-block-metadata
+  text: vLLM API reference and source. "vllm.v1.core.kv_cache_utils," accessed 2026-11-10.
+  url: https://docs.vllm.ai/en/stable/api/vllm/v1/core/kv_cache_utils/
+- id: vllm-tuning
+  text: vLLM documentation. "Optimization and Tuning," V1 chunked prefill and preemption, accessed 2026-11-10.
+  url: https://docs.vllm.ai/en/stable/configuration/optimization/
+- id: vllm-hybrid
+  text: vLLM documentation. "Hybrid KV Cache Manager," accessed 2026-11-10.
+  url: https://docs.vllm.ai/en/latest/design/hybrid_kv_cache_manager/
+- id: sglang-unified
+  text: SGLang source documentation. "Unified Radix Cache" component design, commit 533c067, 2026-11-10.
+  url: https://raw.githubusercontent.com/sgl-project/sglang/533c06768925b7758fffc809f0f0d4c3d830f5e0/python/sglang/srt/mem_cache/unified_cache/components/README.md
+- id: sglang-tree-core
+  text: SGLang source. "unified_tree_core.py," commit 533c067, 2026-11-10.
+  url: https://raw.githubusercontent.com/sgl-project/sglang/533c06768925b7758fffc809f0f0d4c3d830f5e0/python/sglang/srt/mem_cache/unified_cache/unified_tree_core.py
+- id: sglang-schedule
+  text: SGLang source. "schedule_policy.py," commit 533c067, 2026-11-10.
+  url: https://raw.githubusercontent.com/sgl-project/sglang/533c06768925b7758fffc809f0f0d4c3d830f5e0/python/sglang/srt/managers/schedule_policy.py
+- id: sglang-hicache
+  text: SGLang documentation. "HiCache System Design and Optimization," commit 533c067, 2026-11-10.
+  url: https://raw.githubusercontent.com/sgl-project/sglang/533c06768925b7758fffc809f0f0d4c3d830f5e0/docs/docs/advanced_features/hicache_design.mdx
+- id: dynamo-architecture
+  text: NVIDIA Dynamo. "KV-Aware Routing," development documentation. Accessed November 10, 2026.
+  url: https://docs.dynamo.nvidia.com/dynamo/dev/knowledge-base/concepts/system-architecture/kv-aware-routing
+- id: dynamo-deploy
+  text: NVIDIA Dynamo. "Deploy with DGD," development documentation. Accessed November 10, 2026.
+  url: https://docs.dynamo.nvidia.com/dynamo/dev/kubernetes/model-deployment/deploy-with-dgd
+- id: llmd-indexer
+  text: llm-d. "KV-Cache Indexer," v0.10 documentation. Accessed November 10, 2026.
+  url: https://llm-d.ai/docs/0.10/architecture/advanced/kv-management/kv-indexer
+- id: sglang-policy
+  text: SGLang. "Cache-aware routing policy," sgl-model-gateway source on main. Accessed November 10, 2026.
+  url: https://github.com/sgl-project/sglang/blob/main/sgl-model-gateway/src/policies/cache_aware.rs
+- id: sglang-indexer
+  text: SGLang. "SGL KV Indexer (in-memory build)," repository documentation on main. Accessed November 10, 2026.
+  url: https://github.com/sgl-project/sglang/blob/main/sgl-router/sgl-kv-indexer/README.md
+- id: dynamo-design
+  text: NVIDIA Dynamo documentation. "Disaggregated Serving," development architecture page, accessed November 2026.
+  url: https://docs.dynamo.nvidia.com/dynamo/dev/knowledge-base/concepts/system-architecture/disaggregated-serving
+- id: dynamo-guide
+  text: NVIDIA Dynamo documentation. "Disaggregated Serving," v1.3.0 user guide.
+  url: https://docs.dynamo.nvidia.com/dynamo/v1.3.0/user-guides/disaggregated-serving
+- id: nixl-architecture
+  text: NVIDIA NIXL documentation. "Architecture."
+  url: https://docs.nvidia.com/nixl/getting-started/architecture/
+- id: nixl-backend
+  text: NIXL project. "Backend Plugin Interface Overview."
+  url: https://github.com/ai-dynamo/nixl/blob/main/docs/BackendGuide.md
+- id: llmd-pd
+  text: llm-d documentation. "Disaggregated Serving."
+  url: https://llm-d.ai/docs/architecture/disaggregation/pd-disaggregation
+- id: vllm-nixl
+  text: vLLM documentation. "NixlConnector Usage."
+  url: https://github.com/vllm-project/vllm/blob/main/docs/features/nixl_connector_usage.md
+- id: vllm-push
+  text: vLLM design documentation. "NIXL KV Push Connector."
+  url: https://github.com/vllm-project/vllm/blob/main/docs/design/nixl_kv_push_connector.md
+- id: vllm-compat
+  text: vLLM documentation. "NixlConnector Compatibility."
+  url: https://github.com/vllm-project/vllm/blob/main/docs/features/nixl_connector_compatibility.md
+- id: sglang-hicache-blog
+  text: 'SGLang engineering blog. "HiCache in SGLang: hybrid-model caching."'
+  url: https://www.sglang.io/blog/hicache
+- id: lmcache-architecture
+  text: LMCache documentation. "Architecture Overview."
+  url: https://docs.lmcache.ai/developer_guide/architecture.html
+- id: mooncake-paper
+  text: 'Ruoyu Qin et al. "Mooncake: A KVCache-centric Disaggregated Architecture for LLM Serving." ACM Transactions on Storage, 2025.'
+  url: https://madsys.cs.tsinghua.edu.cn/publication/mooncake-a-kvcache-centric-disaggregated-architecture-for-llm-serving/
+- id: kvbm
+  text: NVIDIA Dynamo documentation. "KVBM."
+  url: https://docs.dynamo.nvidia.com/dynamo/components/kvbm
+- id: deepseek-v2
+  text: 'DeepSeek-AI. "DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model." 2024.'
+  url: https://arxiv.org/abs/2405.04434
+- id: baseten-case
+  text: Baseten. "How we built the world’s fastest API for GLM-5.2." June 23, 2026.
+  url: https://www.baseten.co/blog/how-we-built-the-worlds-fastest-api-for-glm-52/
+- id: llmd-topology
+  text: 'llm-d engineering blog. "Topology as an End-to-End Contract: P/D Disaggregated Inference in llm-d on GKE." October 29, 2026.'
+  url: https://llm-d.ai/blog/topology-as-an-end-to-end-contract
+- id: fireworks
+  text: Fireworks AI. "Prompt caching." Live documentation, checked November 10, 2026.
+  url: https://docs.fireworks.ai/guides/prompt-caching
+- id: cpd
+  text: Jiejing Zhang et al., Together AI. "Cache-aware prefill–decode disaggregation (CPD) for up to 40% faster long-context LLM serving." March 4, 2026.
+  url: https://www.together.ai/blog/cache-aware-disaggregated-inference
+- id: thunder-blog
+  text: 'Hao Kang et al., Together AI. "ThunderAgent: 2x Faster Agentic Inference for Synthetic Data Generation at Scale." July 29, 2026.'
+  url: https://www.together.ai/blog/thunderagent
+- id: thunder-paper
+  text: 'Hao Kang et al. "ThunderAgent: A Simple, Fast and Program-Aware Agentic Inference System." arXiv:2602.13692v3, June 30, 2026.'
+  url: https://arxiv.org/html/2602.13692v3
+lastmod: 2026-11-10 10:00:00+05:30
+aliases:
+- /blog/vllm-sglang-kv-cache-lifecycle/
+- /blog/distributed-kv-cache-routing/
+- /blog/prefill-decode-disaggregation-kv-transfer/
+- /blog/llm-serving-workload-short-long-agentic/
 ---
 
 In the [transformers post](/blog/transformers-intuitively/) the model was a function: tokens
@@ -128,63 +232,52 @@ surprisingly little of it is about the model. It's about **memory** (where the K
 and how much of it you can keep) and **scheduling** (which request runs, when, and on which
 GPU).
 
-The story goes in four steps, and each one exists because of a limit in the one before:
+I will build the serving system in layers:
 
-1. **Prefill vs decode.** A request has two phases with opposite bottlenecks: reading the
-   prompt is compute-bound, writing the answer is memory-bound. Everything else follows from
-   this.
-2. **vLLM.** A plain `generate()` loop wastes most of the GPU's memory on padding and
-   reservations, and leaves slots idle while the longest answer finishes. PagedAttention and
-   continuous batching fix both, for up to 24x the throughput{{< cite "vllm-blog" >}}.
-3. **SGLang.** Many requests share long prefixes (system prompts, few-shot examples, chat
-   history, agent traces). A radix tree of cached KV, plus a scheduler that runs requests in
-   prefix order, turns that sharing into skipped work{{< cite "sglang-paper" >}}.
-4. **The cluster.** With many replicas, each has its own cache, and a cache-blind load balancer
-   scatters related requests. Routing on prefixes, and splitting prefill and decode onto
-   different GPUs, is what NVIDIA Dynamo, llm-d and Baseten do at scale
-   {{< cite "dynamo-blog" "llmd-kv" "baseten-kv" >}}.
+1. **Execution and measurement:** prefill, decode, memory arithmetic, TTFT, token gaps, tails, and goodput.
+2. **The engine:** continuous batching, PagedAttention, SGLang's radix tree, and the ownership rules that make prefix reuse safe.
+3. **The cluster:** choosing replicas from delayed cache metadata, moving KV between prefill and decode workers, and recovering from failures.
+4. **The workload:** short requests, long cold or warm contexts, RAG, reasoning, and agents whose histories must survive tool calls.
 
-Along the way I'll do the arithmetic that serving teams do on a whiteboard (how many tokens fit,
-how long a step takes, when moving KV beats recomputing it) and check each idea with a small
-Python simulation you can run.
+Each layer includes worked maths, code, and diagrams. The implementation notes were checked on November 10, 2026. Older papers and launch benchmarks are dated examples; current documentation describes version-specific behavior. The attached simulations are teaching models, not measurements of GPU performance.
+
+For a focused read, jump to [cache lifetimes](#kv-cache-lifecycle-identity-residency-and-ownership), [distributed routing](#scaling-out-routing-on-prefixes), [cross-node handoffs](#disaggregating-prefill-and-decode), or [workload tradeoffs](#workloads-short-prompts-long-context-rag-and-agents).
 
 ## The two phases of a request
 
 ### Prefill reads, decode writes
 
-When a prompt arrives, the model runs over **all prompt tokens at once**. That's one big
-forward pass with $n$ tokens in it; it builds the KV cache for every prompt position and
-produces the first output token. This is **prefill**.
+In the simplest uncached case, the model processes the prompt positions in parallel, builds their KV state, and produces the first sampled output token. This is **prefill**. Serving engines can split it into scheduled chunks or reuse an already computed prefix.
 
 Then the model generates one token at a time. Each step feeds in *only the newest token*,
 attends to the cached keys and values of everything before it, appends one new K/V pair, and
-produces the next token. This is **decode**, and it repeats once per output token.
+produces the next token. This is **decode**. Without speculative execution, generating $m$ output tokens takes $m-1$ such steps after prefill produces the first sample.
 
 <figure class="ml-diagram">
-<svg viewBox="0 0 860 210" role="img" aria-label="Timeline of one request: a long prefill block that processes all prompt tokens in parallel, then a sequence of short decode steps, one per output token. TTFT spans the prefill; TPOT is the length of one decode step.">
+<svg viewBox="0 0 860 210" role="img" aria-label="Simplified request timeline: prefill emits the first output token, then decode emits tokens 2 through m. TTFT ends at prefill completion in this unqueued example.">
   <defs><marker id="ml-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>
-  <text class="label" x="175" y="30">compute-bound: matrix × matrix</text>
-  <text class="label" x="560" y="30">memory-bound: matrix × vector, once per token</text>
+  <text class="label" x="175" y="30">prefill: many token positions</text>
+  <text class="label" x="560" y="30">decode: one new position per sequence per step</text>
   <rect class="box violet" x="45" y="50" width="260" height="80" rx="8"/>
   <text class="name" x="175" y="84">Prefill</text>
-  <text class="note violet" x="175" y="108">all n prompt tokens in one pass</text>
+  <text class="note violet" x="175" y="108">process prompt, emit token 1</text>
   <rect class="box green" x="330" y="50" width="48" height="80" rx="8"/>
-  <text class="name" x="354" y="96">1</text>
+  <text class="name" x="354" y="96">2</text>
   <rect class="box green" x="388" y="50" width="48" height="80" rx="8"/>
-  <text class="name" x="412" y="96">2</text>
+  <text class="name" x="412" y="96">3</text>
   <rect class="box green" x="446" y="50" width="48" height="80" rx="8"/>
-  <text class="name" x="470" y="96">3</text>
+  <text class="name" x="470" y="96">4</text>
   <rect class="box green" x="504" y="50" width="48" height="80" rx="8"/>
-  <text class="name" x="528" y="96">4</text>
+  <text class="name" x="528" y="96">5</text>
   <rect class="box green" x="562" y="50" width="48" height="80" rx="8"/>
-  <text class="name" x="586" y="96">5</text>
+  <text class="name" x="586" y="96">6</text>
   <rect class="box green" x="620" y="50" width="48" height="80" rx="8"/>
   <text class="name" x="644" y="96">…</text>
   <rect class="box green" x="678" y="50" width="48" height="80" rx="8"/>
   <text class="name" x="702" y="96">m</text>
   <text class="note green" x="790" y="96">done</text>
-  <line class="arrow both" x1="49" y1="155" x2="374" y2="155"/>
-  <text class="label" x="211" y="182">TTFT (time to first token)</text>
+  <line class="arrow both" x1="49" y1="155" x2="301" y2="155"/>
+  <text class="label" x="175" y="182">TTFT (time to first token)</text>
   <line class="arrow both" x1="390" y1="155" x2="434" y2="155"/>
   <text class="label" x="412" y="182">TPOT</text>
   <line class="arrow plain" x1="49" y1="200" x2="726" y2="200"/>
@@ -216,7 +309,7 @@ numbers are almost always quoted as percentiles (P50, P90, P99); the
 roofline defines each metric exactly, what the percentiles mean, and how they're commonly
 misread.
 
-### Why one is compute-bound and the other memory-bound
+### Why prefill often favors compute and decode favors bandwidth
 
 A GPU has two speeds: how many FLOPs per second it can do, and how many bytes per second it
 can read from HBM. For an H100 SXM in BF16 those are about 989 TFLOP/s (dense; the datasheet's
@@ -250,7 +343,7 @@ per byte.
   Batching $b$ requests makes $n = b$, which is why batching helps decode so much: the same
   weight read now serves $b$ users.
 
-Attention in decode is worse, and batching doesn't help it at all. For one sequence of
+For distinct full-attention contexts, batching does not provide the same KV reuse as it provides weight reuse. It can still improve kernel occupancy and implementation efficiency. For one sequence of
 length $L$, the new query (with $H$ heads of size $d_h$) is dotted against $L$ keys and mixes
 $L$ values: about $4 H d_h L$ FLOPs. It has to read that sequence's K and V, which are
 $2 \cdot H_{kv} \cdot d_h \cdot L$ numbers at 2 bytes each:
@@ -912,11 +1005,11 @@ vLLM's idea is the one operating systems settled on decades ago for RAM: stop gi
 process one contiguous slab, and give it **pages** instead{{< cite "pagedattention" >}}.
 
 - GPU memory for KV is split up front into a pool of fixed-size **blocks**, each holding the
-  K and V of 16 tokens (vLLM's default block size).
+  K and V of a configurable number of tokens; use 16 for this illustration.
 - Each sequence has a **block table**, a list mapping its logical blocks (tokens 0–15,
   16–31, …) to physical block ids anywhere in the pool.
-- Blocks are allocated **on demand**: a new one only when the last one fills up. Nothing is
-  reserved for tokens that haven't been generated.
+- The illustrative allocator grows **on demand** as a sequence needs more slots. An engine
+  can separately reserve headroom or enforce admission limits for future output.
 
 <figure class="ml-diagram">
 <svg viewBox="0 0 860 300" role="img" aria-label="PagedAttention: two requests' logical KV blocks map through per-request block tables to non-contiguous physical blocks in a shared GPU pool; unused blocks are free">
@@ -1158,7 +1251,7 @@ over 12,000.
 
 ### Sharing: parallel sampling, beam search, copy-on-write
 
-Block tables make sharing free. If you ask for 4 samples of one prompt, all four sequences
+Block tables let sequences share immutable physical pages without duplicating the entire prefix. If you ask for 4 samples of one prompt, all four sequences
 can point at the **same physical blocks** for the prompt. Each block keeps a **reference
 count**. When a sequence needs to write into a block that others also point at (only ever its
 last, partly filled block), it first copies that block: **copy-on-write**, exactly like
@@ -1170,13 +1263,9 @@ parallel sampling and beam search{{< cite "vllm-blog" >}}.
 
 ### When memory runs out: preemption
 
-With on-demand allocation the pool can run dry mid-generation. vLLM then **preempts** the most
-recently arrived requests (first-come-first-served, so the oldest keep going), and frees *all*
-of a sequence's blocks at once: since attention needs every block of a sequence, keeping only
-some is useless. To bring a preempted request back it either **swaps** its blocks to CPU
-memory and back, or **recomputes** them by re-running prefill over prompt + generated tokens.
-Recomputation is often cheaper than you'd expect, because that prefill is one big parallel
-pass{{< cite "pagedattention" >}}.
+On-demand allocation can still exhaust the pool mid-generation. A scheduler may defer admission or preempt an active request, then resume it using retained state, restoration, or recomputation according to the engine's policy. Freeing a request's references does not imply erasing every reusable prefix block. vLLM's checked V1 tuning guide describes recomputation as its default preemption mode. {{< cite "vllm-tuning" >}}
+
+Eviction and preemption are different: the former reclaims an unpinned cached copy, while the latter interrupts active work. The [lifecycle example](#kv-cache-lifecycle-identity-residency-and-ownership) shows why blocks with live readers cannot simply be overwritten.
 
 ### How much faster, and compared with what
 
@@ -1198,27 +1287,9 @@ had continuous batching, which is why the gap there is 2–3x: that part is most
 
 ### Automatic prefix caching: keep blocks after the request ends
 
-Once KV lives in blocks with reference counts, a natural next step is to **not free** a
-request's blocks when it finishes. If a later request starts with the same tokens (same system
-prompt, same chat history), it can point at those blocks and skip their prefill. vLLM calls
-this **automatic prefix caching (APC)**{{< cite "vllm-apc" >}}:
+Completed KV blocks can remain cached after a request releases them. A later request with the same compatible token prefix can reuse those blocks and skip repeated prefill. vLLM calls this automatic prefix caching (APC). Its V1 design keys blocks by their preceding prefix, token IDs, and relevant execution identity. {{< cite "vllm-apc" >}}
 
-- Every **full** block gets a hash: $h_j = \text{hash}(h_{j-1}, \text{tokens in block } j,
-  \text{extras})$, where extras cover things like LoRA adapter ids and image hashes. Chaining
-  in the parent hash means a block's hash identifies the *entire prefix* up to it, not just its
-  16 tokens. Two blocks with the same text at different positions get different hashes.
-- A hash table maps hash → physical block. A new request hashes its prompt block by block and
-  walks the chain until the first miss: everything before that is a cache hit.
-- Blocks whose reference count drops to 0 aren't wiped; they go on a free queue in LRU order
-  and are only evicted when someone needs a fresh block. A request's blocks go on in reverse
-  order, so the tail of a sequence (least likely to be shared) is evicted first.
-- An optional per-request `cache_salt` mixes into the first block's hash so tenants can't
-  probe each other's cached prompts.
-
-How much it saves: in llm-d's test, sending a ~10,000-token prompt to Qwen3-32B a second time
-dropped TTFT from 4.3 s to 0.6 s{{< cite "llmd-kv" >}}. In vLLM V1, prefix caching is on by
-default, after its data structures were made constant-time so a low hit rate costs almost
-nothing{{< cite "vllm-v1" >}}.
+Matching a key does not guarantee GPU residency, safe ownership, or space for the next generated token. The [cache lifecycle section](#kv-cache-lifecycle-identity-residency-and-ownership) works through those cases with a runnable model and contrasts completed-block eligibility with a logical radix match.
 
 ### Chunked prefill: don't let one long prompt freeze everyone
 
@@ -1267,13 +1338,10 @@ per-iteration **token budget**, and run one chunk per step alongside the decodes
   <text class="note green" x="815" y="74">decode</text>
   <text class="note green" x="815" y="184">decode</text>
 </svg>
-<figcaption>Each box is one forward pass. Chunking makes the new request's TTFT slightly longer, but the people already mid-answer never stall.</figcaption>
+<figcaption>Each box is one forward pass. Chunking bounds one prefill contribution per iteration; the budget trades prefill completion time against interference with running decodes.</figcaption>
 </figure>
 
-Why it costs almost nothing: decode steps are memory-bound and leave most of the GPU's compute
-idle (the roofline section). A prefill chunk of a few thousand tokens uses that idle compute
-while the weights are being streamed anyway. Pick the budget near the point where the
-iteration turns compute-bound, and the decodes "piggyback" on the chunk for free. Sarathi-Serve
+A suitable prefill chunk can use compute capacity left idle by bandwidth-limited decode. This is not free overlap: the chosen token budget, attention work, and hardware determine the resulting iteration time. Measure both TTFT and token gaps while tuning it. Sarathi-Serve
 reports 2.6x more serving capacity for Mistral-7B on one A100 and up to 3.7x for Yi-34B on two
 A100s versus vLLM at the time, under tail-latency targets{{< cite "sarathi" >}}.
 
@@ -1483,13 +1551,7 @@ If the waiting queue holds requests from 20 different few-shot tasks, interleave
 cache only holds a few tasks' prefixes at a time, first-come-first-served keeps switching
 between tasks and evicting each prefix just before it's needed again. That's cache thrashing.
 
-SGLang sorts the waiting queue by **longest matched prefix** and runs those first
-{{< cite "sglang-paper" >}}. The paper proves this is optimal in the offline case:
-
-> **Theorem 3.1.** For a batch of requests, we can achieve an optimal cache hit rate by
-> visiting the radix tree of the requests in the depth-first search order, with a cache size
-> ≥ the maximum request length. The longest-shared-prefix-first order is equivalent to a
-> depth-first search order.
+The original SGLang paper studies **longest-prefix-first** scheduling. Its offline result connects a depth-first traversal with optimal reuse when the cache is large enough for the longest request. These assumptions matter; they do not prove optimal online latency or fairness. {{< cite "sglang-paper" >}}
 
 The intuition: a depth-first walk finishes everything under one subtree (one shared prefix)
 before moving on, so each prefix is computed once, used by all its requests, and only then
@@ -1517,7 +1579,7 @@ def run(reqs, policy, capacity_tokens=2_000):
     while waiting:
         if policy == "fcfs":
             i = 0
-        else:                                   # longest-prefix-match first (SGLang's default)
+        else:                                   # longest-prefix-match first in this toy
             i = max(range(len(waiting)), key=lambda j: cache.match(waiting[j]))
         req = waiting.pop(i)
         hit += cache.match(req)
@@ -1545,6 +1607,8 @@ across workloads, and up to 6.4x the throughput of other systems{{< cite "sglang
 plainly: greedy longest-prefix-first can **starve** requests that share nothing with the
 cache, so a production scheduler needs some fairness on top.
 
+Scheduling is another separate choice. The original SGLang paper studies cache-aware ordering around shared radix paths. The current source exposes longest-prefix-match (`lpm`), depth-first weighting, and other cache-aware policies alongside `fcfs`; it falls back from `lpm` to `fcfs` when the waiting queue exceeds its inspected 128-request match limit. That is a source snapshot, not a promise about every deployment's default. Preferring warm requests can preserve reuse, but cold-request waiting time and scheduler overhead still need measurement. {{< cite "sglang-paper" "sglang-schedule" >}}
+
 ### Hiding the CPU
 
 All of this (matching prefixes, sorting the queue, allocating blocks) runs on the CPU between
@@ -1555,219 +1619,256 @@ similar push, moving tokenization, detokenization and streaming into a separate 
 the engine loop, for up to 1.7x the throughput of V0{{< cite "vllm-v1" >}}. Once the GPU kernels
 are fast, Python overhead is a large part of what's left.
 
-## Scaling out: routing on prefixes
+## KV cache lifecycle: identity, residency, and ownership
 
-### Why round-robin destroys the cache
+A prefix cache is useful only when the server can answer three different questions: **Is this the same computation? Is its KV state still resident somewhere? Can I protect and use that state while this request runs?** A token match answers only the first part. A hash or radix index finds the candidate; an allocator and its reference counts decide whether the physical state survives; a scheduler decides whether using it now is worthwhile.
 
-One replica can only take so much traffic, so you run $N$ of them behind a load balancer.
-Now each replica has its **own** KV cache, and a standard load balancer (round-robin, or
-least-connections) knows nothing about it.
+The next example uses four-token blocks and a two-block pool to make boundary and ownership failures visible. These are teaching values, not engine defaults.
 
-Think about one conversation. Turn 2's prompt is turn 1's prompt plus two messages, so it
-would hit turn 1's cache, *if* it lands on the same replica. With round-robin over $N$
-replicas, it does so with probability about $1/N$. With 8 replicas, 7 of 8 turns re-prefill
-the whole conversation.
+### What makes KV reusable?
 
-There's a quieter cost too. If every replica eventually sees every popular prefix, every
-replica caches every popular prefix: the cluster holds $N$ copies of the same thing, and its
-**effective cache size is one replica's**, not $N$ replicas'. Route each prefix to one place
-and the replicas partition the prefixes between them; the effective cache becomes $N$ times
-larger. That's the real prize of prefix-aware routing: not just a hit on the next turn, but a
-cluster-wide cache.
+For an ordinary causal transformer, the KV at token position $i$ is produced from that token *in its preceding context*. Two sequences that share the word “answer” at position $i$ need not have the same K and V there. Reuse requires the same effective prefix up to $i$, not just the same final word. The practical comparison starts with **token IDs** after the chat template and tokenizer have run. Identical visible text can tokenize differently when templates, special tokens, or tokenizer versions differ.
 
-### Approximate vs precise views of the cache
+Token IDs are necessary but not always sufficient. The same prefix under different model weights, LoRA adapters, position/rope configuration, or multimodal payloads can yield different KV. A safe cache namespace therefore includes every execution input that affects KV. vLLM's V1 design hashes the parent block, its token IDs, and extras such as LoRA IDs, image hashes, and an optional tenant salt. An image placeholder token alone does not identify the image. {{< cite "vllm-apc" >}}
 
-To route on prefixes, the router needs to know (or guess) which replica holds what.
-
-- **Approximate (infer from routing history).** The router keeps its own radix tree per
-  worker of *what it sent there*, and assumes those prefixes are still cached. No
-  communication with workers needed. This is SGLang v0.4's cache-aware load balancer (a Rust
-  `sglang-router`): on a workload with many long prefix groups it raised throughput from
-  82,665 to 158,596 tokens/s and the hit rate from 20% to 75%{{< cite "sglang-v04" >}}. It
-  goes wrong when a worker evicts something the router still thinks is there.
-- **Precise (listen to the workers).** Each worker publishes **KV events**, "block with hash
-  $h$ stored" or "removed", and a central indexer keeps a live map from block hashes to the
-  workers (and memory tier: GPU or CPU) holding them. NVIDIA Dynamo's router and llm-d's
-  precise scheduler both do this{{< cite "dynamo-routing" "llmd-kv" >}}.
-
-llm-d compared them head to head on 8 vLLM pods (16 H100s) with a B2B workload: 150 customers,
-each with a 6,000-token context, 5 users per customer sending 1,200-token queries, at 3 to 60
-QPS{{< cite "llmd-kv" >}}. The workload is sized on purpose. Each pod holds 307,328 tokens of
-KV, so the cluster holds $8 \times 307{,}328 \approx 2.46$M tokens, and the working set is:
+I will write a conceptual block key as
 
 $$
-150 \times (6{,}000 + 5 \times 1{,}200) = 1.8\text{M tokens} \approx 73\% \text{ of the cluster}, \quad \approx 5.9\times \text{ one pod}.
+h_{j+1}=H\!\left(h_j,\; (t_{jB},\ldots,t_{(j+1)B-1}),\; e_j\right),\quad j=0,1,\ldots,
 $$
 
-No single pod can hold it, so placement matters. (As a sanity check, Qwen3-32B's 256 KiB per
-token puts 307,328 tokens at about 75 GiB, about what's left of two 80 GB GPUs after 65 GB of
-BF16 weights and some headroom.) The results:
+Here $h_0$ starts from the model and tenant cache scope, $B$ is the block's token capacity, and $e_j$ represents any additional per-block execution identity. Chaining $h_j$ makes the same four IDs after two different histories two different keys. The equation is a model of *identity*; the implementation also needs a collision-resistant representation and correct serialization. vLLM documents SHA-256 options and notes that serialization affects reproducibility across versions and languages. Hash equality must never substitute for checking the necessary model and tenant scope. {{< cite "vllm-apc" >}}
 
-| Scheduler | P90 TTFT | Output throughput |
-| --- | --- | --- |
-| precise (KV events) | 0.542 s | 8,730 tokens/s |
-| approximate (routing history) | over 31 s | about 7,000 tokens/s (precise is 25% higher) |
-| cache-blind (random, or load only) | over 90 s | under half of precise |
+### Six matching tokens, four reusable ones
 
-That's 57x lower P90 TTFT than the approximate scheduler, and over 170x lower than random, on
-the same hardware.
+Consider two token-ID sequences, with $B=4$:
 
-### Balancing affinity against load
+| Request | Token IDs | Interpretation |
+|---|---|---|
+| A | `[10,11,12,13 \| 20,21,22]` | One completed block; three-token mutable tail. |
+| B | `[10,11,12,13 \| 20,21,99,30]` | First six IDs match A; divergence is token 7. |
+| C | `[10,11,12,13 \| 20,21,99,30 \| 40]` | Eight IDs match completed B blocks, then one new token. |
 
-Pure affinity has an obvious failure: if one prefix is hot (a viral app, one huge customer),
-"always send it where it's cached" sends **all** of that traffic to one replica. It melts
-while the others idle. llm-d calls this **hot spotting** and lists it as the main failure of
-affinity-heavy routers{{< cite "llmd-sticky" >}}. Every production router balances the two
-signals; they differ in how.
+After A, its first four token states can be indexed as a completed block. Its tail has only three of four slots and is still mutable. In the vLLM V1 **full-block-only** prefix-caching path described by its design document, B finds the first block and then stops. The block-pool API likewise describes a completed full block as eligible for prefix caching; this example does not cover its specialized partial-entry paths. {{< cite "vllm-apc" "vllm-block-pool" >}} The longest *token-level* common prefix of A and B is six, but the reusable completed-block prefix is four. B computes tokens `20,21,99,30` and, when its block fills, that different second block can be indexed. If the six-token logical match were usable at single-token granularity, only `99,30` would require new KV work; a four-token physical page boundary can reduce the usable hit.
 
-**Dynamo: one cost in units of KV blocks.** The router estimates, for each worker, how much
-work it would have if this request went there, and picks the cheapest
-{{< cite "dynamo-routing" >}}:
+For this simplified full-block case, if a common prefix of length $L$ is present and the block capacity is $B$, the maximum indexed hit is
 
 $$
-\begin{aligned}
-\text{prefill} &= \max\!\big(0,\ \text{active prefill blocks} + \text{prompt blocks} - \text{overlap blocks}\big) \\
-\text{cost} &= \text{prefill\_load\_scale} \cdot \text{prefill} + \text{active decode blocks} + \text{incoming decode blocks}
-\end{aligned}
+L_{\mathrm{usable}}=B\left\lfloor\frac{L}{B}\right\rfloor.
 $$
 
-The cache hit enters as a *credit* that removes prefill work, and queued work on a busy
-worker adds it back, so the two are compared in the same unit. A block cached in CPU memory
-earns less credit than one in GPU memory, and a block on disk less still (defaults 0.75 and
-0.25 of a GPU hit), because it has to be copied back first{{< cite "dynamo-tuning" >}}. An
-optional temperature turns the argmin into a softmax sample to spread load.
+This is an **upper bound conditional on residency and identity**. Eviction, a changed cache scope, allocation pressure, or a different model-specific cache policy can reduce it. It is not a universal equation for every SGLang mode, hybrid attention model, or later vLLM configuration.
 
-**llm-d: sticky until saturated.** Their newer default is deliberately simpler than the old
-four-signal weighted blend (prefix match, queue depth, KV utilization, LRU), which was "hard
-to predict and harder to tune"{{< cite "llmd-sticky" >}}. Keep the request on the replica with
-the best prefix match, **unless** that replica's backlog of uncached prefill tokens leads the
-coldest replica's by more than a threshold $\tau$. Past that, ignore affinity and pick by load
-alone, where load is the work this request would add:
+<figure class="ml-diagram">
+<svg viewBox="0 0 860 335" role="img" aria-label="A and B share six logical tokens, but only a completed four-token block is reusable in the illustrated block cache">
+  <defs><marker id="ml-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>
+  <text class="label" x="430" y="28">Logical compressed prefix tree after A and B</text>
+  <rect class="box violet" x="20" y="65" width="100" height="62" rx="8"/><text class="name" x="70" y="103">root</text>
+  <rect class="box green" x="180" y="65" width="300" height="62" rx="8"/><text class="name" x="330" y="103">10 11 12 13 20 21</text>
+  <rect class="box rose" x="590" y="42" width="215" height="62" rx="8"/><text class="name" x="697" y="80">22 (A)</text>
+  <rect class="box blue" x="590" y="128" width="215" height="62" rx="8"/><text class="name" x="697" y="166">99 30 (B)</text>
+  <line class="arrow" x1="125" y1="96" x2="175" y2="96"/>
+  <path class="arrow" d="M484,96 H530 V73 H585"/>
+  <path class="arrow" d="M484,96 H530 V159 H585"/>
+  <text class="label" x="430" y="228">Illustrative four-token block allocation after A</text>
+  <rect class="box green" x="95" y="250" width="295" height="64" rx="8"/><text class="name" x="242" y="285">10 11 12 13</text><text class="note green" x="242" y="306">full, indexed, shareable</text>
+  <rect class="box rose" x="470" y="250" width="295" height="64" rx="8"/><text class="name" x="617" y="285">20 21 22 ·</text><text class="note rose" x="617" y="306">partial mutable tail</text>
+</svg>
+<figcaption>The radix split is a logical token boundary. It does not prove that the physical allocator can share a fraction of a page.</figcaption>
+</figure>
 
-$$
-\text{score}(e) = \text{uncached tokens in flight}(e) + \text{prompt tokens} \times \big(1 - \text{hit rate}(e)\big).
-$$
+A compressed radix tree stores a run of tokens on one edge rather than one node per token. When B arrives, the logical edge for A can split after the six shared tokens into a shared parent and two children. That is a useful *index* operation, not necessarily a GPU copy or a promise that all six token states are independently addressable. The original SGLang RadixAttention paper motivates the tree for reuse across structured multi-call programs. Its current tree source tracks logical matches separately from device and host matches. I would ask for both the **matched logical length** and the **device-resident usable length** when comparing it with a block-hash cache. {{< cite "sglang-paper" "sglang-tree-core" >}}
 
-The load signal matches the bottleneck: uncached prefill tokens for prefill-heavy traffic,
-active requests for decode-heavy traffic. And $\tau$ is calibrated in **chunks**. With the
-8,192-token per-step budget they ran vLLM with, their $\tau = 286{,}720$ tokens is exactly 35
-chunks of backlog a warm replica may build up before it's cheaper to go cold. They report 2–3x the
-throughput of Kubernetes round-robin on prefill-bound workloads, holding TTFT across the
-operating range.
+### A cache entry has a lifecycle, not just a key
 
-Here are five policies in a small simulator: 8 replicas, a 60,000-token cache each, prefill
-at 40,000 uncached tokens/s, 150 customers with 6,000-token prefixes and 1,200-token queries,
-at 60 QPS. It runs two traffic shapes: popularity spread over many tenants, and one tenant
-taking most of the traffic.
+I separate four operations. **Allocate** takes a free physical page for new KV. **Seal** makes a completed page's identity immutable and indexable. **Pin** increases its live-use count when a request reuses it, preventing eviction. **Release** decreases that count when the request no longer needs it; a zero-count completed page can remain in a cache until capacity pressure evicts it. A partial mutable tail is different: it can be filled by its owner, but sharing it while another request mutates it would be unsafe. A completed shared prefix must be treated as immutable; diverging requests append new pages or use copy-on-write where the actual engine supports it.
 
-{{< tabs >}}
+vLLM V1's block metadata has a physical ID, a reference count, and a hash for cached content. {{< cite "vllm-block-metadata" >}} Its block pool keeps an eviction-ordered free queue. A cache hit “touches” a block, increments its count, and removes it from that queue; a zero-count cached block can still retain its KV until its slot is reused. Reallocation removes the old hash mapping. The inspected block-pool source also allows duplicate completed blocks rather than changing already allocated IDs, so simultaneous computation need not deduplicate immediately. {{< cite "vllm-block-pool" >}}
 
-```python {title="Round-robin"}
-def round_robin(reps, prompt, now, state):
-    state["i"] = state.get("i", -1) + 1
-    return state["i"] % len(reps)
+SGLang's Unified Radix Cache separates a **logical tree core** from per-component physical data. Its full-attention, sliding-window, and Mamba/SSM components have separate locks and eviction behavior; a node can retain metadata after one component's physical data is evicted. The source also separates tree decisions from allocation, freeing, and copy-on-write hooks. The original paper's radix-tree narrative explains the index but not every current storage mode. This source snapshot was inspected on 2026-11-10. {{< cite "sglang-unified" >}}
+
+The small [executable model](cache_lifecycle.py) uses integer token IDs and a two-block pool. It implements full-block chained keys, mutable tails, pin counts, and eviction only of zero-pin completed blocks. This excerpt shows why matching and appending are separate:
+
+```python {title="Core of the teaching model"}
+# A completed block is keyed by its parent context and exact token IDs.
+key = (request.parent, tuple(chunk))
+if len(chunk) == BLOCK_SIZE and key in cache.index:
+    block = cache.blocks[cache.index[key]]
+    block.pins += 1                 # Protect before allocating new pages.
+    request.parent = key
+    request.hit_tokens += BLOCK_SIZE
+
+# New tokens go into a private tail. Its key appears only when it fills.
+block.tokens.append(next_token)
+if len(block.tokens) == BLOCK_SIZE:
+    block.key = (request.parent, tuple(block.tokens))
+    cache.index[block.key] = block.block_id
 ```
 
-```python {title="Least loaded"}
-def least_loaded(reps, prompt, now, state):
-    return min(range(len(reps)), key=lambda r: reps[r].backlog(now))
-```
-
-```python {title="Prefix affinity"}
-def prefix_affinity(reps, prompt, now, state):
-    # stickiest replica wins; load only breaks ties
-    return max(range(len(reps)), key=lambda r: (reps[r].cache.match(prompt), -reps[r].backlog(now)))
-```
-
-```python {title="KV cost (Dynamo-style)"}
-def kv_cost(reps, prompt, now, state):
-    # Dynamo-style: queued prefill work + this request's uncached work; lowest cost wins
-    return min(range(len(reps)),
-               key=lambda r: reps[r].backlog(now) + len(prompt) - reps[r].cache.match(prompt))
-```
-
-```python {title="Sticky until saturated (llm-d-style)"}
-def sticky_until_saturated(reps, prompt, now, state, tau=8_192 * 4):
-    # llm-d-style: keep affinity unless the warm replica is tau tokens behind the coldest
-    best = prefix_affinity(reps, prompt, now, state)
-    coldest = min(r.backlog(now) for r in reps)
-    if reps[best].backlog(now) - coldest <= tau:
-        return best
-    return min(range(len(reps)), key=lambda r: reps[r].backlog(now)
-               + len(prompt) * (1 - reps[r].cache.match(prompt) / len(prompt)))
-```
-
-{{< /tabs >}}
-
-```python {title="router_sim.py (simulator)"}
-import random
-from prefix_cache import RadixCache
-
-class Replica:
-    def __init__(self, cache_tokens, prefill_rate):
-        self.cache = RadixCache(cache_tokens)
-        self.rate = prefill_rate            # uncached prompt tokens it can prefill per second
-        self.free_at = 0.0                  # when its prefill queue drains
-
-    def backlog(self, now):                 # uncached prompt tokens still queued
-        return max(0.0, self.free_at - now) * self.rate
-
-def simulate(policy, skew, n_reps=8, n_customers=150, prefix_len=6_000, query_len=1_200,
-             qps=60, n_requests=2_500, cache_tokens=60_000, prefill_rate=40_000, seed=0):
-    rng = random.Random(seed)
-    reps = [Replica(cache_tokens, prefill_rate) for _ in range(n_reps)]
-    weights = [1 / (c + 1) ** skew for c in range(n_customers)]         # Zipf popularity
-    prefixes = [[c * 10**6 + t for t in range(prefix_len)] for c in range(n_customers)]
-    now, state, ttfts, hit, total = 0.0, {}, [], 0, 0
-    for _ in range(n_requests):
-        now += rng.expovariate(qps)
-        c = rng.choices(range(n_customers), weights)[0]
-        prompt = prefixes[c] + [rng.randrange(10**9) for _ in range(query_len)]
-        r = reps[policy(reps, prompt, now, state)]
-        cached = r.cache.match(prompt)
-        start = max(now, r.free_at)
-        r.free_at = start + (len(prompt) - cached) / r.rate
-        r.cache.insert(prompt)
-        ttfts.append(r.free_at - now)
-        hit, total = hit + cached, total + len(prompt)
-    ttfts.sort()
-    return hit / total, sum(ttfts) / len(ttfts), ttfts[int(0.9 * len(ttfts))]
-
-if __name__ == "__main__":
-    for label, skew in [("many tenants (Zipf 0.8)", 0.8), ("one hot tenant (Zipf 2.5)", 2.5)]:
-        print(label)
-        for p in (round_robin, least_loaded, prefix_affinity, kv_cost, sticky_until_saturated):
-            h, mean, p90 = simulate(p, skew)
-            print(f"  {p.__name__:23} hit rate {h:4.0%}   mean TTFT {mean:5.2f}s   p90 TTFT {p90:5.2f}s")
-```
+Run `python3 cache_lifecycle.py` from the post folder to see the checked trace:
 
 ```text {title="Output"}
-many tenants (Zipf 0.8)
-  round_robin             hit rate  14%   mean TTFT  3.13s   p90 TTFT  5.78s
-  least_loaded            hit rate  14%   mean TTFT  3.14s   p90 TTFT  5.52s
-  prefix_affinity         hit rate  52%   mean TTFT  0.13s   p90 TTFT  0.19s
-  kv_cost                 hit rate  46%   mean TTFT  0.13s   p90 TTFT  0.20s
-  sticky_until_saturated  hit rate  52%   mean TTFT  0.13s   p90 TTFT  0.19s
-one hot tenant (Zipf 2.5)
-  round_robin             hit rate  77%   mean TTFT  0.05s   p90 TTFT  0.12s
-  least_loaded            hit rate  77%   mean TTFT  0.04s   p90 TTFT  0.03s
-  prefix_affinity         hit rate  82%   mean TTFT  5.41s   p90 TTFT 12.49s
-  kv_cost                 hit rate  81%   mean TTFT  0.04s   p90 TTFT  0.03s
-  sticky_until_saturated  hit rate  82%   mean TTFT  0.06s   p90 TTFT  0.10s
+A: computed 7 tokens; 4 indexed, 3 in a mutable tail
+While A is active: allocation refused; both blocks are pinned
+B: 6-token common prefix, 4-token block hit, 4 tokens recomputed
+C: 8-token hit, but no free block for the next token
+Same tokens, different cache scope: 0-token hit
+After release: one unpinned cached block is evicted and reused
+Same second-block tokens after different parents: distinct keys
 ```
 
-Two very different failures in one table:
+The failed allocation is deliberate. A holds both physical blocks, so a second request cannot overwrite either even if a new request has no cache hit. After A releases them, its full first block remains indexed while its unfinished tail is discarded. B reuses four tokens and fills a new second block. C then matches eight tokens but cannot append token 9 while those two blocks are pinned: a cache hit can still require **additional capacity**. After C releases, an unrelated request can evict one zero-pin cached block to reclaim its slot. Real schedulers can defer, preempt, or otherwise manage pressure; this program simply refuses an allocation while every block is pinned. It models no GPU kernels, concurrent duplicate fills, or engine-specific queue policy.
 
-- **Many tenants:** cache-blind routing gets a 14% hit rate, re-prefills almost everything,
-  and the cluster runs past capacity: queues grow and P90 TTFT reaches nearly 6 s. Any
-  prefix-aware policy partitions the tenants across replicas, more than triples the hit rate,
-  and stays under 0.2 s. It's the same story as llm-d's benchmark, in miniature.
-- **One hot tenant:** now the hot prefix gets cached everywhere even by round-robin (77%
-  hits), and pure affinity is the policy that **breaks**: it piles the hot tenant onto one
-  replica and P90 TTFT reaches 12.5 s. Both load-aware policies keep the hit rate *and* the
-  latency. The Dynamo-style cost spills the hot prefix onto other replicas as soon as their
-  queue is shorter than the prefill it saves; sticky-until-saturated spills once the warm
-  replica is $\tau$ tokens behind.
+### What a prefix hit saves
+
+A reusable prefix avoids rebuilding its old activations. The uncached suffix still needs forward computation, and new full-attention queries still read retained keys and values. Cache hits save repeated prefill; they do not make a long context free during decode. A lower-tier hit also needs restoration before its state can be used.
+
+The full-attention/GQA memory estimate above excludes page slack, metadata, quantization scales, and replication. MLA, sliding-window retention, and hybrid recurrent layers need different per-layer accounting. vLLM's hybrid manager and SGLang's component cache expose these distinctions. {{< cite "vllm-hybrid" "sglang-unified" >}}
+
+### Residency, release, and eviction
+
+A **local index hit** is not necessarily a GPU-resident hit. In SGLang HiCache, the documented tiers are instance-private GPU memory (L1), instance-private host memory (L2), and an optional L3 backend whose scope depends on its configuration. A node may identify data in L2 or L3, but the KV must be moved to the GPU before ordinary attention uses it. HiCache's design describes local matching, prefetch, write policies, and lower-tier storage; it does not make every L3 backend globally shared by default. A failed or too-slow restore can make recomputation preferable. {{< cite "sglang-hicache" >}}
+
+**Eviction** removes a reusable physical copy when capacity is needed; safe eviction waits until no active request requires that copy. **Preemption** concerns an active request that cannot continue under current capacity and may have to resume through recomputation or another engine-specific mechanism. vLLM's current V1 tuning documentation describes recompute as its default preemption mode rather than swap. Neither operation is identical to merely releasing a completed request's reference count. {{< cite "vllm-tuning" >}}
+
+The next section follows placement across replicas. A distributed index can point toward reusable state; a separate transfer path may move a physical copy. Neither operation is implied by a local cache hit.
+
+
+## Scaling out: routing on prefixes
+
+A router can know that a worker *probably* has a reusable prompt prefix. It cannot turn that belief into a cache hit by sending a request there. The worker may have evicted the blocks, restarted, or filled its memory with something else between the router's lookup and execution. That small distinction shapes the entire distributed control plane.
+
+Replicas do not automatically share a physical cache. Cache-blind placement can duplicate common prefixes and miss session-local reuse; deliberate placement trades those costs against worker load.
+
+### What is the routing unit?
+
+Suppose a model runs on eight GPUs. That does not necessarily give me eight independent cache destinations. With **tensor parallelism** (TP), ranks split tensors of one model execution. With **pipeline parallelism** (PP), ranks own different layers of that execution. The request needs the cooperating ranks; the useful cache state is distributed according to that topology. With **data parallelism** (DP), separate model copies can serve different requests and may hold different cached prefixes. A DP copy or a whole TP/PP worker group can therefore be a routable cache unit, depending on the engine's deployment and advertised endpoint. NVIDIA's deployment guide distinguishes these parallelism modes and the fact that DP adds independent copies rather than making one model fit. {{< cite "dynamo-deploy" >}}
+
+I call that routable unit a **replica** below. I do not send a request to an arbitrary GPU because its rank happens to appear in an event stream. I first filter for a healthy, compatible serving endpoint: the same model and adapter, a matching cache format and topology, the correct prefill or decode pool, and enough capacity. If prefill and decode are disaggregated, routing to a prefill worker and transferring KV to a decode worker are separate decisions. A cache hit on one pool does not magically place the bytes on the other. [The disaggregation section](#disaggregating-prefill-and-decode) follows that data movement.
+
+```mermaid
+flowchart LR
+  C[Client request] --> R1[Router A]
+  C --> R2[Router B]
+  R1 --> I1[Local or shared placement index]
+  R2 --> I1
+  I1 -. metadata: block key, worker, tier .-> R1
+  I1 -. metadata: block key, worker, tier .-> R2
+  R1 --> W1[Replica 1: serving ranks and actual KV]
+  R1 --> W2[Replica 2: serving ranks and actual KV]
+  R2 --> W1
+  R2 --> W2
+  W1 -. store, remove, reset events .-> I1
+  W2 -. store, remove, reset events .-> I1
+```
+
+The arrows back to the index carry **placement metadata**, not key/value tensors. A placement record might say “block key $b$ was last reported at replica 1, GPU tier.” It is cheaper to replicate that record than to copy a long prompt's KV across machines. The actual KV is held and validated by the serving ranks. llm-d's index, for example, maps block keys to pods using `BlockStored`, `BlockRemoved`, and `AllBlocksCleared` events. SGLang's experimental indexer similarly describes itself as metadata that lets a router query *likely* hits without moving KV data. {{< cite "llmd-indexer" "sglang-indexer" >}}
+
+### Exact prefix identity and contiguous matches
+
+The [cache identity rules](#what-makes-kv-reusable) still apply across replicas: effective token IDs, prior context, model weights, adapters, multimodal content, and the correct tenant scope must agree. A router needs an agreed identity protocol or an engine-provided translation, not just matching visible text.
+
+For a five-block request, a worker holding blocks 0, 1, and 3 has a two-block reusable prefix; block 3 cannot bridge the missing block 2. llm-d's scorer uses the longest consecutive prefix and incorporates multimodal and LoRA identity. {{< cite "llmd-indexer" >}}
+
+Dynamo notes that engine hashes may use salts and digests the router cannot reproduce; predicted-on-route state therefore remains separate from the event-fed index. The worker remains the authority on compatibility and usable state. A tenant namespace helps scope reuse, but is not by itself a proof of memory isolation. {{< cite "dynamo-tuning" >}}
+
+### How does the router learn where blocks are?
+
+There are two different kinds of knowledge.
+
+An **event-driven index** follows actual cache changes reported by workers: store, remove, and reset. It can distinguish a GPU-resident block from a block in a slower tier when the event protocol provides that information. NVIDIA Dynamo's event-driven route uses worker cache events together with active-load information; llm-d's precise producer reads its KV event index; SGLang's experimental KV indexer offers event-based prefix queries. {{< cite "dynamo-architecture" "llmd-indexer" "sglang-indexer" >}}
+
+An **approximate history index** predicts placement from requests the router assigned. It can work without cache events, but an assignment does not prove the worker stored the prefix: the request may have been cancelled, failed, or caused evictions. SGLang's gateway `cache_aware` policy on the examined `main` branch keeps an approximate radix tree from request history using raw text characters, and switches toward shortest-queue routing when its imbalance thresholds fire. This is one policy, not a description of every SGLang routing mode; the repository also contains the separate experimental event-driven indexer. {{< cite "sglang-policy" "sglang-indexer" >}}
+
+Dynamo exposes both modes: it can consume worker KV events, or use a TTL-based prediction when events are disabled. Its tuning guide also describes a separate short-lived prediction on assignment while events remain enabled. That side prediction addresses a real timing gap: a sibling request may arrive after the first request was routed but before the engine publishes a stored-block event. The prediction is useful for affinity; it is not evidence of residency. {{< cite "dynamo-tuning" >}}
+
+| Signal | What it can establish | What can still go wrong |
+|---|---|---|
+| Request assignment | A worker was asked to process this prefix | It may not have completed or retained the KV |
+| Store event | A worker reported a block at some earlier instant | It may be evicted before lookup or dispatch |
+| Remove/reset event | Known placement should be revoked | The event may arrive late or be missed |
+| Worker admission and lookup | The worker can validate current compatibility and residency | A miss costs recomputation or an explicit restore |
+
+“Precise” in a project document describes the index's chosen evidence and matching logic. It does not mean that an asynchronous event stream gives a linearizable view of every worker's changing cache at the instant a router makes a decision. Even a shared database for index entries cannot eliminate the interval between a worker's local cache mutation and the corresponding publication. llm-d describes its event view as **near-realtime**; its documentation also discusses independently subscribed EPP replicas and a shared Redis/Valkey option. Those are different replication arrangements, not a guarantee that all routers observe the same current physical KV simultaneously. {{< cite "llmd-indexer" >}}
+
+### A cost model: locality is only one term
+
+I find it useful to put all estimates in the same unit—say milliseconds on a specific workload—before making a choice. For compatible worker $w$, let $L$ be the prompt length, $H_w$ its estimated reusable contiguous prefix length, and $c_w$ the estimated cost to prefill one remaining token in this regime. A teaching score is
+
+$$
+\widehat C_w = Q_w + (L-H_w)c_w + R_w + N_w,
+$$
+
+where $Q_w$ is expected queue delay, $R_w$ is the cost of restoring a prefix from a slower local tier **if that route requires it**, and $N_w$ is network transfer cost **if the route requires it**. These are workload-dependent estimates, not an additive hardware law: batching, context length, and resource contention can change $c_w$. If $H_w$ credits a prefix that needs restoration, the score must include that restoration cost; each copy belongs in $R_w$ or $N_w$ once. If a worker's blocks are only on CPU, a cheap metadata match can become an expensive restore. With disaggregated serving, the transfer to a decode worker belongs in the chosen end-to-end path, not in a free “hit.”
+
+Take five equal blocks and assume recomputing one costs 4 ms. Replica A advertises the first three, while B has none. If A's queue is 18 ms and B's is 2 ms, the estimated totals are $18+2(4)=26$ ms for A and $2+5(4)=22$ ms for B. **B wins despite zero locality.** If A's queue falls to 5 ms, A's total becomes 13 ms. Add an 11 ms restore cost to that route and it becomes 24 ms; B wins again. These are deliberately invented numbers for reasoning, not measured GPU timings.
+
+{{< embed src="routing_tradeoff.html" height="520" caption="Move the hot worker's queue and restore costs; the winner changes even while its three-block prefix remains fixed." >}}
+
+In a real system I would measure estimated versus actual queue delay, prefix hit length, restore time, transfer time, time to first token, and tail latency by workload class. A long shared [agentic workload](#workloads-short-prompts-long-context-rag-and-agents) may value affinity differently from a short independent prompt. Baseten reports improvement from Dynamo's KV-aware routing on its own deployment and traffic; that is useful case-study evidence, not a universal multiplier for every pool, engine, or load shape. {{< cite "baseten-kv" >}}
+
+### Delayed events, resets, and a possible recovery protocol
+
+Consider a router that recorded A's first three blocks. A evicts them, but its removal event has not arrived. The router still estimates 13 ms and chooses A; A finds no usable prefix and recomputes all five blocks, costing $5+5(4)=25$ ms in the toy example. This is a **false positive for performance**, but a correct response if the worker checks its own cache and treats the metadata as a hint. The opposite delay—a stored block with no event yet—is a false negative: the router may miss an opportunity. That is why placement metadata should affect scheduling, never determine what the worker may read as valid KV.
+
+How would I keep an event-fed index from silently drifting forever? The following is a **proposed protocol for this post**, not a statement that Dynamo, llm-d, or SGLang implements all of it:
+
+1. Each worker incarnation has an epoch. On restart or whole-cache reset, its old epoch's placements are invalid. A delayed old store cannot resurrect them.
+2. Events within an epoch have monotonically increasing sequence numbers. If the index sees a gap, it marks that worker's view **unknown** instead of continuing to count its old entries as hits.
+3. The worker can send a snapshot of current placements, then resume ordered incremental events. A snapshot from the same epoch must be at least as recent as the highest event sequence already observed; an older delayed snapshot cannot rewind the view. Until a valid snapshot is installed, route by health and load with zero trusted locality credit.
+4. Membership removes dead workers from eligibility immediately; a TTL can bound how long *unconfirmed* predictions survive, but TTL alone cannot prove that a worker is alive or that a block still exists.
+
+The attached [routing_demo.py](routing_demo.py) illustrates epoch fencing, gap invalidation, and snapshot recovery in a small model. It also shows an old-epoch event being ignored. SGLang's experimental indexer README is unusually candid about a different current contract: its in-memory build says it has no sequence gate, incarnation fencing, replay recovery, worker liveness TTL, or restart recovery, and that a publisher gap is only logged. That is exactly why I keep my proposed recovery steps separate from product claims. {{< cite "sglang-indexer" >}}
+
+There is one more race: if many routers see the same hot prefix on A, they can all choose A and create a queue spike. A **reservation** records an assignment that is likely to create or consume a prefix, so sibling requests can prefer the same destination before a store event arrives. It needs a short expiry, cancellation/failure cleanup, and an admission or queue guard. I would keep reservations separate from advertised resident blocks: “assigned to A” is not “stored on A.” Dynamo's predicted-on-route side index illustrates the same distinction and uses a separate TTL; its documentation says the prediction can be wrong after cancellation or failure. {{< cite "dynamo-tuning" >}}
+
+The hard part is not just a good cache score. It is deciding when to stop following it. A worker with a valuable common prefix can still be the wrong destination if its queue grows faster than the saved prefill. Reader-facing latency and fleet throughput may also disagree: packing requests around one cache can leave other workers idle. Queue-aware selection, per-worker admission limits, and a fallback for unknown metadata make the system more stable than affinity alone.
+
+### Multiple routers, scaling, and safe degradation
+
+Two frontend routers can observe different event subsets or observe the same events at different times. A shared index can reduce that divergence, but it adds a network dependency and still does not turn worker cache events into an atomic transaction with dispatch. An independently subscribed index can avoid that dependency but requires each replica to handle late or missed events. In both cases, **the worker's cache lookup is authoritative**. If the index is unavailable, the router can choose among healthy compatible workers by load and accept a possible cache miss. If the worker disappears after selection, retry policy must respect whether any response tokens were already emitted; a blind retry can duplicate externally visible output.
+
+Autoscaling changes the tradeoff. A new replica is cold, so pure locality selection may never warm it while old replicas accumulate queues. Routing a fraction of requests to it can buy future capacity at an immediate prefill cost. When a replica is removed, its index entries and reservations must become ineligible; KV does not migrate merely because the metadata entry was deleted. An actual KV transfer, if supported, has its own cost and compatibility requirements. The pool health view, cache view, and outstanding assignments need to agree enough to avoid routing to a dead endpoint, even though they do not need to pretend the cache is globally synchronous.
+
+The current public systems emphasize different signals. The table records the specific documentation and source versions I read on **November 10, 2026**; development docs and `main` branches can change.
+
+| System and examined source | Cache signal described | Operational nuance |
+|---|---|
+| NVIDIA Dynamo `dev` docs | Worker KV events, active load; optional TTL prediction or predicted-on-route side index | Engine and router hash identities can differ; prediction is separated from event truth {{< cite "dynamo-architecture" "dynamo-tuning" >}} |
+| llm-d v0.10 docs | Model-server `KVEvents` indexed as block-to-pod placements, scored by contiguous prefix and tier | Near-realtime view; EPPs can subscribe independently or use shared index storage {{< cite "llmd-indexer" >}} |
+| SGLang gateway `main` policy | Approximate radix tree from request history and load thresholds | Separate experimental SGLang KV indexer can instead supply event-based matches; its README states current recovery limits {{< cite "sglang-policy" "sglang-indexer" >}} |
+| Baseten March 2026 report | Use of Dynamo KV-aware routing in its own inference stack | A vendor production case study, with results conditioned on its traffic and setup {{< cite "baseten-kv" >}} |
+
+### A runnable control-plane model
+
+The toy uses a five-block prefix, one hot and one cold worker, and invented per-block costs. The full [routing_demo.py](routing_demo.py) uses SHA-256 only to give its chunks distinct reproducible keys; it is not an implementation of any engine's block hash. The core routing calculation is deliberately short:
+
+```python
+def prefix_len(keys, held):
+    matched = 0
+    for key in keys:
+        if key not in held:
+            break
+        matched += 1
+    return matched
+
+def estimated_cost(queue_ms, total_blocks, advertised_hits, block_ms=4):
+    return queue_ms + (total_blocks - advertised_hits) * block_ms
+```
+
+Run `python3 routing_demo.py` from this post's folder. Its checked output is:
+
+```text
+Busy hot replica: ('B', 0, 0, 22, 22)
+Quiet hot replica: ('A', 3, 3, 13, 13)
+Stale advertisement; worker misses safely: ('A', 3, 0, 13, 25)
+Gap handling: sequence gap: view invalidated
+Delayed same-epoch snapshot: ignored
+Old event after reset: ignored
+Reserved for A; advertised prefix blocks: 0
+```
+
+Each tuple is `(chosen worker, advertised prefix blocks, actual prefix blocks, estimated ms, actual simulated ms)`. The code checks the results with assertions. It models a router and workers, not GPU runtime scheduling, cache eviction internals, network latency, or performance on a real model.
 
 ### What the industry numbers say
 
@@ -1788,25 +1889,24 @@ by their shared prefixes and the load each prefix brings{{< cite "preble" >}}.
 
 ## Disaggregating prefill and decode
 
+The hard part of separating prefill from decode is not naming two GPU pools. It is making the second pool see the *right* attention state, in its own layout, at exactly the moment it may use it. A router can forward a request in milliseconds while its KV cache is still being written or is crossing a network. If the decode worker reads an unfinished block, the generation is wrong. If it waits too long, the split loses its latency benefit.
+
 ### Why split them
 
-The roofline section showed prefill and decode want opposite things from the hardware:
+The roofline model suggests different operating points for prefill and decode. The exact bottleneck still depends on batch size, context, model, kernels, and hardware:
 
 | | Prefill | Decode |
 | --- | --- | --- |
-| Bottleneck | compute (FLOPs) | memory bandwidth and KV capacity |
-| Ideal batch | a few thousand tokens fills the GPU | as many sequences as KV memory allows |
-| Ideal parallelism | less tensor parallelism; each GPU busy computing | more GPUs to hold weights + KV; wide expert parallelism for MoE |
-| What it hurts when co-located | stalls every decode in the batch | — |
+| Common pressure | compute for large prefills | weight/KV bandwidth and live KV capacity |
+| Batch tuning | enough positions to use compute efficiently | enough sequences to reuse weights within latency limits |
+| Parallelism tuning | balance compute, communication, and context length | balance state capacity, communication, and token latency |
+| Co-located interference | a large prefill can lengthen a decode iteration | live decode state limits room for new work |
 
 Chunked prefill softens the interference, but on one GPU you still have to pick a single
 parallelism layout and batch shape for two jobs. **Disaggregation** runs them on separate
 pools: prefill workers compute the KV cache, ship it to a decode worker, and the decode
 worker generates the answer. Splitwise (Microsoft) and DistServe argued for this in 2023–24
-{{< cite "splitwise" "distserve" >}}: DistServe serves up to 7.4x more requests, or meets 12.6x
-tighter latency targets, than co-located systems. Mooncake, which serves Kimi at Moonshot AI,
-built its whole architecture around the KV cache, pooling the cluster's otherwise idle CPU
-memory and SSDs into a disaggregated KV store{{< cite "mooncake" >}}.
+{{< cite "splitwise" "distserve" >}}. Their experiments motivate independently sizing the phases; the gain depends on the compared layout, workload, and SLO. Mooncake's published design for Kimi centers scheduling on KV and pools CPU memory and SSD capacity into a distributed store. {{< cite "mooncake" >}}
 
 <figure class="ml-diagram">
 <svg viewBox="0 0 860 330" role="img" aria-label="Disaggregated serving: a KV-aware router sends requests to a prefill pool, which transfers KV blocks to a decode pool over RDMA; cache-hot decode workers may prefill locally; both pools spill KV to CPU memory, SSD and remote storage tiers, and publish KV events back to the router">
@@ -1837,16 +1937,116 @@ memory and SSDs into a disaggregated KV store{{< cite "mooncake" >}}.
 <figcaption>The shape of Dynamo-style and llm-d-style serving: route on prefixes and load, prefill on one pool, decode on another, and treat KV as data that moves between GPUs and down to cheaper storage.</figcaption>
 </figure>
 
-### The price: moving the KV cache
+### What must arrive at decode?
 
-Disaggregation only pays if shipping the KV is cheaper than what it saves. From the script at
-the top: a 4,096-token prompt on Llama 3 70B produces 1.34 GB of KV. Prefill takes ~150 ms
-on 8 H100s at 50% MFU. Moving 1.34 GB takes 1.5 ms over NVLink inside a node, or about 27 ms
-over a 400 Gb/s network link. Transfer is a small fraction of prefill, and it scales with
-prompt length (linear), while prefill scales a bit worse (linear plus the quadratic attention
-term). So disaggregation gets *more* attractive for long prompts. NVIDIA's transfer library
-**NIXL** exists for exactly this: moving KV blocks between GPUs, CPU memory and storage over
-whatever fabric is there{{< cite "dynamo-blog" >}}.
+For an autoregressive transformer, each relevant attention layer needs keys and values for the prompt tokens that have already been processed. Prefill computes that state, often in chunks constrained by a scheduler token budget. Decode needs both the token sequence and the corresponding KV state to continue correctly; moving only the prompt text makes the decode worker recompute prefill. Moving only a pointer is useful *only if* that pointer names bytes the receiver can actually access.
+
+I think of the handoff as a small state machine: **reserved → producing → transferring → ready → decoding → released**. “Ready” means the required source writes finished, all required payload arrived in destination memory, and the decode GPU has a valid dependency on that completion. It does **not** mean the cache was committed to durable storage. This KV is transient serving state, not a database record. A separate offload tier may retain a copy for reuse, but that is a different policy.
+
+```mermaid
+sequenceDiagram
+    participant R as Router / sidecar
+    participant D as Decode worker
+    participant P as Prefill worker
+    R->>D: Choose compatible worker and reserve KV blocks
+    D-->>R: Destination mapping + transfer metadata
+    R->>P: Prompt and handoff identity
+    P->>P: Prefill chunks write KV and record completion
+    P-->>D: KV payload over NIXL / selected transport
+    D->>D: Wait for receive and GPU visibility
+    D-->>P: Completion acknowledgement
+    D->>D: Decode may now attend to full prefix
+    P->>P: Release source blocks when safe
+```
+
+This is an **illustrative correctness protocol**, not a claim that every connector sends exactly these messages or in this order. For example, Dynamo's current architecture describes a router passing backend-specific `disaggregated_params` from prefill to decode; its vLLM path uses `kv_transfer_params`, while its SGLang path uses bootstrap information and can submit the decode request concurrently with prefill. llm-d documents a sequential vLLM sidecar flow and a concurrent SGLang bootstrap flow. “Decode begins immediately” in such documentation can mean the decode-side request and transfer orchestration begin immediately. The first attention step that needs the entire prompt KV must still wait until those dependencies are satisfied. {{< cite "dynamo-design" "llmd-pd" >}}
+
+### Reservation, payload, and completion are separate
+
+A destination first needs capacity. For a paged cache, admission should account for the prompt blocks it will receive **and** headroom for tokens it may generate. It may reserve blocks immediately or use an engine-specific admission mechanism; either way a router's choice is provisional until the decoder can hold the context. A fast prefill followed by “no room on D” is wasted work. Model weights, activations, communication buffers, and other active sequences also compete for decode HBM. Dynamo's user guide explicitly treats KV capacity and matching model, dtype, block size, and layout as deployment checks. {{< cite "dynamo-guide" >}}
+
+The control plane exchanges identities and descriptors: request or generation ID, block IDs, token ranges, layout and rank mapping, and memory-registration information. NIXL registers memory sections and exchanges remote-access metadata before an asynchronous transfer is posted. The router or sidecar should carry *metadata*, not the full KV tensor through an HTTP body. The data path can then use a direct GPU-to-GPU transfer when the selected transport and hardware allow it. NIXL is a transfer library; RDMA is one possible network mechanism underneath it. A fallback transport can make the same protocol much slower. {{< cite "nixl-architecture" >}}
+
+A prefill chunk writes its KV on a GPU stream. Before a transport reads those bytes, the producer needs an ordering dependency such as a stream event or equivalent framework barrier. After a non-blocking transfer, a returned handle or notification is not permission to read the destination until the transfer has completed and the consumer's GPU work is ordered after it. NIXL's backend interface explicitly describes non-blocking posts, status checks, optional notifications, no ordering guarantee across separate transfer requests, and caller responsibility for overlapping memory regions. That is why a per-block “sent” flag is weaker than “safe for decode.” {{< cite "nixl-backend" >}}
+
+Can transfer overlap prefill? It depends on the connector. A design that publishes completed chunks can pipeline their transfer with later chunks, but it must track every block's readiness and keep source memory alive until the copy finishes. The documented default vLLM NIXL pull path starts the D-side read **after** P finishes prefill; vLLM's push design also describes transfer after the producer finishes the request. Non-blocking transfer can still overlap useful work for *other* requests on the prefill GPU. I would not assume same-request chunk streaming from the word “async” alone. {{< cite "vllm-push" "vllm-nixl" >}}
+
+### Bytes, layouts, and topology
+
+For a conventional grouped-query-attention model with $L_a$ attention layers, $H_{kv}$ KV heads, head dimension $d_h$, and $s$ bytes per stored value, the ideal logical KV size per token is
+
+$$
+b_{\mathrm{KV}}=L_a\,(2H_{kv}d_hs),\qquad
+B_{\mathrm{prompt}}=N_{\mathrm{prompt}}b_{\mathrm{KV}}.
+$$
+
+The factor two is for key and value. It is a logical minimum before block rounding, metadata, replication, quantization scales, padding, or transport staging. If the page holds $P$ tokens and I reserve $G$ future decode tokens, a simple reservation estimate is
+
+$$
+B_{\mathrm{reserve}}=
+\left\lceil\frac{N_{\mathrm{prompt}}+G}{P}\right\rceil P\,b_{\mathrm{KV}}.
+$$
+
+For the script's **illustrative** 40-layer GQA model, $H_{kv}=8$, $d_h=128$, and two bytes per value give $163{,}840$ bytes, or 160 KiB, per token. A 4,096-token prompt is 0.625 GiB of logical KV. With 512 future tokens reserved and 16-token pages, 288 pages occupy 0.703125 GiB. A *16 GiB KV-only pool* could hold at most 22 such reserved contexts if there were no prefix sharing or other cache allocations. That is a block-capacity bound, not a statement about any actual GPU's usable memory.
+
+A real layout may make **wire bytes** differ from logical bytes. Tensor parallelism can shard KV heads, replicate them when a shard would be too small, or require a transpose when P and D have different rank counts and layouts. Pipeline parallelism assigns different layers to stages; a receiving stage needs the KV for *its* layers, not a raw memory image from an unrelated rank. Multiple links and D ranks can move parts in parallel, but they can also contend for the same NIC, PCIe path, rail, or switch. Model identity also matters: weights, adapter, tokenizer and token positions, attention variant, KV dtype, block shape, and layout must agree. An addressable block containing incompatible KV is a cache miss, not a successful handoff. Dynamo documents layout conversion for differing tensor parallelism, while llm-d's topology study shows why GPU–NIC and rail placement belong in the route decision. Some connector/layout combinations are unsupported rather than merely slow; vLLM's compatibility document, for example, rejects a pull connector with both pipeline parallelism and a hybrid KV layout. {{< cite "dynamo-design" "llmd-topology" >}} {{< cite "vllm-compat" >}}
+
+The conventional formula must not be reused blindly for multi-head latent attention (MLA). In a latent-cache implementation, a layer may store one compressed vector of width $d_c$ and a separate rotary key width $d_R$ per token, giving approximately $(d_c+d_R)s$ bytes for that layer, rather than $2H_{kv}d_hs$. For a hybrid stack, sum the appropriate per-layer terms. DeepSeek-V2 introduced this MLA cache structure. The *actual* transfer also depends on whether the engine stores the compressed or expanded representation, dtype and scale metadata, padding, rank replication, sliding-window or sparse attention, and any non-attention state. My calculator assumes full-context attention for its active layers and has separate GQA and MLA layer counts to expose one limitation; changing its layer mix does not automatically recalibrate its illustrative prefill-time coefficients. {{< cite "deepseek-v2" >}}
+
+### A break-even test with queueing and shared bandwidth
+
+A payload-only estimate is $T_x\approx t_0+B_{\mathrm{wire}}/\beta_{\mathrm{eff}}$, where $t_0$ includes setup and $\beta_{\mathrm{eff}}$ is *effective* bandwidth available to this transfer. It is not the port's advertised line rate. If $m$ equal transfers fairly share one bottleneck budget $\beta$, a deliberately simple approximation is $\beta_{\mathrm{eff}}\approx\beta/m$. Other traffic, direction, topology, and transfer sizes alter that rate. The same workload also has a bandwidth stability condition: at request rate $r$, $rB_{\mathrm{wire}}$ must remain below the fabric budget, with headroom, or transfer queues will grow.
+
+For a comparison I use **time from arrival until the next decode step can run**, not call it TTFT. Depending on an engine's streaming contract, the first output token may be produced on P before the handoff or withheld until D takes over. In the simplest serial accounting model,
+
+$$
+T_{\mathrm{co}}=Q_{\mathrm{co}}+P_{\mathrm{co}},\qquad
+T_{\mathrm{split}}=Q_P+P_P+Q_D+\max(0,T_x-O).
+$$
+
+$Q$ terms are queue/admission delays, $P$ terms are prefill times under the two layouts, and $O$ is *verified* overlap of transfer with prefill on this request. With default vLLM pull behavior, I set $O=0$. The split wins only when $T_{\mathrm{split}}<T_{\mathrm{co}}$. This serial queue model is intentionally transparent; if D queueing overlaps transfer, the real critical path needs a measured timeline rather than simply adding them. It also says nothing by itself about fleet throughput or GPU cost: dedicating GPUs to P can reduce the number of D workers and the cluster's total decode KV capacity. {{< cite "dynamo-design" >}}
+
+The [runnable transfer and capacity calculator](handoff_calculator.py) makes each assumption an input and draws the figure below. Its core is deliberately plain:
+
+```python
+from math import ceil
+
+layers, kv_heads, head_dim, bytes_per_value = 40, 8, 128, 2
+prompt_tokens, future_tokens, block_tokens = 4096, 512, 16
+setup_ms, active_flows, effective_fabric_gibps = 3, 1, 25
+kv_per_token = layers * 2 * kv_heads * head_dim * bytes_per_value
+wire_gib = prompt_tokens * kv_per_token / 2**30
+reserved_blocks = ceil((prompt_tokens + future_tokens) / block_tokens)
+transfer_ms = setup_ms + 1000 * wire_gib * active_flows / effective_fabric_gibps
+print(f"{wire_gib:.3f} GiB, {reserved_blocks} blocks, {transfer_ms:.1f} ms")
+# 0.625 GiB, 288 blocks, 28.0 ms
+```
+
+The defaults assume a 25 GiB/s **shared effective** fabric budget, 3 ms setup, $Q_{\mathrm{co}}=20$ ms, $Q_P=35$ ms, $Q_D=10$ ms, and artificial prefill functions printed in the script. At 4,096 tokens, one transfer costs 28 ms and the split reaches next-decode-ready in 187.144 ms versus 200.617 ms co-located, a 13.473 ms toy saving. Four simultaneous equal flows sharing the *same* 25 GiB/s budget raise the transfer term to 103 ms and make the split 61.527 ms slower. At 128 tokens, even one flow makes the split 26.856 ms slower. No GPU was benchmarked to produce these curves; all values follow from the declared inputs.
+
+{{< figure src="handoff-tradeoff.svg" caption="Illustrative, unit-checked model only. Left: request readiness under the stated queues and effective shared-fabric rate. Right: maximum contexts in a 16 GiB decode KV pool when 512 future tokens are reserved per request. Run handoff_calculator.py to change the assumptions." width="100%" >}}
+
+The figure also shows why “long prompt” is not enough to make disaggregation win. Longer prompts raise prefill work *and* handoff bytes, consume more D capacity, and often correlate with more queued work. If a decode worker already holds a long shared prefix, the *uncached suffix* is the relevant prefill and transfer work; forcing a remote prefill can be worse than local continuation. I would compare distributions of prompt lengths, cache overlap, output lengths, simultaneous transfers, and p95/p99 queue times, then sweep P:D ratios at fixed GPU budget. The right policy may route some requests locally.
+
+### Failures, cleanup, and the adjacent storage problem
+
+A request can be cancelled while P computes, while bytes are in flight, or after D has reserved memory. A robust connector needs a request identity plus a transfer generation, an explicit owner for each source and destination block, and a rule for when each may be freed. A source block cannot be overwritten while a DMA read is in flight; a destination block cannot be reused while a late completion may still write into it. On timeout, retire the old generation, wait for or abort outstanding transfers according to the transport's semantics, and release reservations only when reuse is safe. Retrying can pull still-valid blocks or recompute prefill; it must not let an old completion satisfy a new request. These are **design requirements I infer from asynchronous memory transfer**, not a promise that a named engine implements this exact state machine. NIXL's backend guide explicitly leaves cross-request ordering and overlapping-memory safety to its caller. {{< cite "nixl-backend" >}}
+
+The distinction between P/D transfer and **cache tiering** is useful. P/D moves the current request's KV to the worker that will generate its answer. Tiering preserves reusable blocks when HBM is scarce: HBM is immediately usable, host DRAM needs a copy back, local SSD is slower, and a remote store adds network and possibly storage contention. SGLang HiCache describes HBM/DRAM/external-storage levels; LMCache describes transport and storage modes; Mooncake's paper pools DRAM, SSD, and network resources around a KV-centric scheduler; Dynamo KVBM presents a memory layer across these tiers. A tier hit may save recomputation on a *later* request, but it can add a fetch to this request's critical path. None of these products implies every P/D handoff writes a durable cache copy. {{< cite "sglang-hicache-blog" "lmcache-architecture" >}} {{< cite "mooncake-paper" "kvbm" >}}
+
+### What reported deployments establish
+
+I read company measurements as evidence about a **specified setup**, not as a portable multiplier:
+
+| Report and date | What was reported | What the result establishes |
+|---|---|---|
+| NVIDIA Dynamo, March 2025 | More than 2× Llama 70B throughput on Hopper in its compared serving configurations. | A reported end-to-end configuration gain; it includes layout and runtime choices, not an isolated KV-copy speedup. {{< cite "dynamo-blog" >}} |
+| Baseten GLM-5.2, June 2026 | About 2× higher TPS for observed workload shapes on Blackwell in its aggregated-versus-disaggregated comparison with Dynamo tools. | A company A/B for that model and traffic; its public account does not supply enough transfer/queue detail to predict my cluster's crossover. {{< cite "baseten-case" >}} |
+| llm-d on GKE, October 2026 | With gpt-oss-120b on 16 H200s, 5K-input/250-output requests at 45 QPS, a forced TCP fallback timed out 436 of 5,400 requests; verified RDMA eliminated those timeouts. Matching GPU/NIC allocation and topology-aware pairing reduced mean TTFT from 2.15 s through 1.157 s to 0.33 s in their ladder. | Transport and placement were critical *within an already disaggregated setup*. The study explicitly does not compare P/D with aggregated serving. {{< cite "llmd-topology" >}} |
+
+Those are different denominators: throughput, TPS, timeouts, and TTFT. A transfer microbenchmark alone cannot settle the serving question, just as a serving speedup cannot identify which part came from the network. I would record transfer bytes and completion latency, P and D queue delays, source-buffer retention, D admission failures, per-rank KV occupancy, transport fallback, and request-level TTFT/ITL together.
+
+### Pull from a peer or recompute locally
 
 The same logic decides whether a replica should **pull** a cached prefix from a peer instead
 of recomputing it. Write the two costs as functions of the prefix length $L$:
@@ -1874,42 +2074,240 @@ and only pull above it.
 
 ### Conditional disaggregation
 
-If the decode worker already has most of a prompt cached (turn 12 of an agent loop), sending
-the request to a prefill worker means recomputing, or shipping, KV that's already sitting on
-the decode GPU. Dynamo's **conditional disaggregation** skips the prefill pool in that case:
-the decode worker prefills the small uncached remainder itself{{< cite "dynamo-conddisagg" >}}.
-The default policy checks the **effective ISL** (input sequence length after subtracting the
-decode worker's cached overlap) and does local prefill when the effective ISL is under 2,048
-tokens **and** under 70% of the raw prompt length. It's an experimental feature, but it shows
-where serving is heading: the router decides per request where each phase should run, based
-on where the KV already is.
+If the decode worker already holds most of an agent's history, it may be cheaper to prefill the new suffix locally. Dynamo documents conditional disaggregation for this case: route using the effective uncached input length and the worker's existing overlap, with thresholds that depend on the installed version and configuration. A local continuation still needs admission and must account for interference with running decodes. {{< cite "dynamo-conddisagg" >}}
 
-### What the industry reports
 
-- **Dynamo**{{< cite "dynamo-blog" >}}: more than 2x throughput for Llama 70B on Hopper with
-  disaggregation (vLLM, FP8, 3K input / 50 output tokens; aggregated TP8×DP2 vs prefill
-  TP2×DP4 + decode TP8). And up to 30x more requests served for DeepSeek-R1 on GB200 NVL72
-  (TensorRT-LLM, FP4, 32K input / 8K output) versus an aggregated baseline. NVIDIA labels
-  that one as a projection, and it combines disaggregation with Blackwell's large NVLink
-  domain, so I'd read it as "what the best case looks like" rather than a typical gain.
-- **Baseten**{{< cite "baseten-dynamo-day" >}}: disaggregated serving "up to 6x higher TPS per
-  GPU is realistic". Their efficient-frontier post frames all of these (batch size,
-  parallelism, quantization, speculative decoding, disaggregation) as moves along a
-  latency-vs-cost curve, not free wins{{< cite "baseten-frontier" >}}.
-- **llm-d**{{< cite "llmd-p2p" >}}: on GLM-5.2 (FP8, 32 H200s, disaggregated), peer-to-peer KV
-  sharing with precise routing raised successful throughput by 9.6% on average over three
-  repeats. In a separate GLM test that isolated the transfer, mean TTFT dropped from 7.85 s
-  to 2.56 s.
+## Workloads: short prompts, long context, RAG, and agents
 
-### KV offloading: the cache doesn't have to fit on the GPU
+I would not choose an LLM serving architecture from average prompt length alone. A cold 32K-token document, a cached 32K-token conversation, and a 32K-token agent history returning after a tool call have the same input length. They ask the system to do different work.
 
-HBM is the scarcest memory in the building. Instead of evicting cold KV blocks, Dynamo's KV
-cache manager, Mooncake's store and llm-d's offloading **spill** them to CPU DRAM, then local
-SSD, then networked storage, and pull them back on a hit
-{{< cite "dynamo-blog" "mooncake" "llmd-kv" >}}. Whether that's worth it is the same
-crossover again: a DRAM-to-GPU copy at tens of GB/s beats recomputing a long prefix, but not a
-short one. That's why Dynamo gives a CPU-tier hit less routing credit than a GPU hit, and a
-disk hit less still{{< cite "dynamo-tuning" >}}.
+The first needs substantial prefill. The second needs access to existing state and computation for its new suffix. The third also needs that state to survive an idle interval, possibly while hundreds of other agents compete for memory.
+
+### Describe the request with more than two lengths
+
+I start with six variables:
+
+| Symbol | Meaning | Why it changes the decision |
+|---|---|---|
+| $P$ | Total prompt tokens | Context size and potential attention work |
+| $H$ | Usable cached prefix tokens at the selected worker | How much prefill can actually be skipped |
+| $U=P-H$ | Uncached input tokens | New prefill work |
+| $O$ | Generated output tokens | Decode duration and context growth |
+| $G$ | Gap before the next related call | How long reusable state must survive |
+| $W$ | Concurrent programs whose state competes for capacity | Cache pressure, including programs waiting on tools |
+
+I also record where the hit lives: GPU memory, host memory, or a remote store. A remote match is useful only after its transfer and installation costs are considered. A router's advertised hit is a prediction until the engine confirms it can use the corresponding blocks.
+
+Even $U$ alone is insufficient. For ordinary full causal attention, the new suffix contains this many query–key pairs per attention head:
+
+$$
+A_{\text{suffix}}=UH+\frac{U(U+1)}{2}.
+$$
+
+Each new query attends to the retained prefix and its preceding suffix. A cached prefix removes the need to recreate its old activations; new tokens still attend to its keys and values. With $U=128$, moving from $H=0$ to $H=32{,}768$ adds 4,194,304 such pairs per head. That is an operation-count observation, not a GPU latency estimate. Projection work, layer count, kernel tiling, bandwidth, batching, and model architecture also matter.
+
+Sliding-window attention, compressed latent caches, and hybrid attention/state-space models need their own accounting. I would not plug their context length into a full-attention formula and call the answer a memory forecast.
+
+### Short requests: fixed costs can matter most
+
+Consider an illustrative classification service with 128 input tokens and 8 output tokens. The useful computation may be small enough that tokenization, dispatch, batch waiting, and transport consume a noticeable fraction of the latency budget.
+
+Prefix caching can still help if every request begins with a large shared instruction template. But for mostly distinct tiny inputs, adding a remote cache lookup or a cross-node prefill/decode handoff can cost more than the work it saves.
+
+I would first measure the distribution of time spent before GPU execution, then test modest batching and a colocated serving path. If arrivals are sparse, waiting to fill a large batch trades away latency without guaranteeing a throughput benefit. If arrivals are dense, batching may amortize model-weight reads very effectively.
+
+The distinction is between a measured bottleneck and a feature checklist. Installing a more elaborate cache hierarchy does not remove an overloaded tokenizer or a gateway that waits too long to dispatch work.
+
+For a user-facing short-answer service, successful requests per second within the latency target is usually more informative than a high aggregate output-token rate.
+
+### Long context has a cold path and a warm path
+
+A first encounter with a long document requires creating its KV state. A later question may reuse most of it, provided the serialized token prefix and computation identity match.
+
+The cold path needs prefill capacity and admission control. The warm path needs accessible state and a short queue. Putting both behind the same heavily loaded FIFO queue can erase much of the warm path's benefit.
+
+Chunked prefill can limit how much a large request occupies one scheduling iteration. It does not make the entire request cheap, and chunk-size choices affect both prefill completion and decode interference. Separate queues or pools are another option, with their own utilization and fairness tradeoffs.
+
+Together AI's March 2026 CPD design is a concrete example. It adds a cold-context pre-prefill tier, a prefill tier that prioritizes reusable context, and decode workers. Its hierarchy spans GPU memory, host DRAM, and a distributed cache. The reported evaluation uses B200 GPUs, four-GPU prefill stages, a synthetic coding-agent workload, and a cap of 24 inflight requests. I use it as evidence for separating cold and warm paths, not as a portable speedup prediction. {{< cite "cpd" >}}
+
+Isolation also needs a policy for the cold queue. Otherwise the system can appear excellent for established sessions while new users wait indefinitely. I would measure queue age by workload class and reserve enough service for cache misses.
+
+#### A warm prompt still occupies memory during decode
+
+Using the earlier 32-layer GQA example, 32,768 tokens at 128 KiB per token occupy 4 GiB of logical KV before output growth and allocation overhead. Sixty-four distinct contexts represent 256 GiB. Shared prefixes reduce physical storage, so count shared blocks once; sharding and replication determine per-GPU occupancy. A hit saves computation, while the retained state still consumes capacity.
+
+### RAG: preserve useful prefixes without changing meaning
+
+Retrieval-augmented generation often has reusable instructions followed by changing evidence. I would inspect the actual model input after chat templating and tool serialization. Similar-looking application objects can produce different token prefixes.
+
+Fireworks' prompt-caching documentation explicitly describes exact prefix matching, recommends placing stable content before variable content, and includes tool definitions in the prompt. Its documented replica-local cache also illustrates why session affinity can improve reuse. These are provider-specific capabilities, not guarantees about every service. {{< cite "fireworks" >}}
+
+Here is a small illustration of prefix identity, using integer token IDs rather than a real tokenizer:
+
+```python
+def common_prefix(a, b):
+    return next((i for i, (x, y) in enumerate(zip(a, b)) if x != y),
+                min(len(a), len(b)))
+
+instructions = [10, 11, 12, 13]
+document_a, document_b = [20, 21], [30, 31]
+question_1, question_2 = [40], [41]
+
+first = instructions + document_a + document_b + question_1
+next_question = instructions + document_a + document_b + question_2
+reordered_docs = instructions + document_b + document_a + question_2
+
+assert common_prefix(first, next_question) == 8
+assert common_prefix(first, reordered_docs) == 4
+```
+
+The stable instructions survive both cases. Reordering the documents breaks reuse after them. A repeated document later in a different preceding context does not automatically have reusable full-attention KV, because its representations depend on that context.
+
+This is not a recommendation to sort every retrieval result alphabetically. Ranking, separators, roles, and evidence placement can affect answer quality. I would stabilize serialization where semantics permit it, then rerun retrieval and answer-quality evaluations. Cache optimization that weakens the evidence supplied to the model is a poor trade.
+
+Similarly, inserting a timestamp near the start of every prompt can invalidate a large downstream prefix. Move or omit it only if the application's meaning and freshness requirements allow that change.
+
+### Long reasoning outputs shift the budget toward decode
+
+Suppose two requests share the same prompt and cached prefix, but one produces 64 tokens and the other 8,192. Their prefill savings may be similar. Their completion times, active memory lifetimes, and opportunities to interfere with other requests are not.
+
+In a simple autoregressive implementation, prefill produces the first sampled token. Producing the remaining $O-1$ samples requires further decode steps. For full attention, the number of key positions consulted across those steps is proportional to:
+
+$$
+\sum_{j=1}^{O-1}(P+j)
+=(O-1)P+\frac{O(O-1)}{2}.
+$$
+
+This excludes heads and layers and says nothing about achieved bandwidth. It does show why shortening prefill does not eliminate the cost of a long generation. Speculative decoding changes how positions are evaluated and accepted; it needs a separate measured cost model.
+
+I would monitor time between tokens, decode batch occupancy, growth of live KV, and completion latency. For a reasoning model, distinguish internally generated reasoning tokens from tokens shown to the user. Fast first-token emission can coexist with a long wait for the useful answer.
+
+Separate decode capacity can help protect streaming latency under prefill load, but the [handoff cost](#disaggregating-prefill-and-decode) still needs to fit the workload. A short prompt followed by a long answer makes a different transfer tradeoff from a huge prompt followed by one label.
+
+### Agents turn the cache into a working-set problem
+
+An agent alternates between generating tokens and executing tools. Its GPU request may finish while its program remains alive.
+
+```mermaid
+flowchart LR
+    A[Prefill or restore history] --> B[Decode tool call]
+    B --> C[Tool runs outside the GPU]
+    C --> D[Append tool result]
+    D --> E{Compatible history resident on GPU?}
+    E -->|Yes| F[Prefill new suffix]
+    E -->|No| G[Restore or recompute history]
+    F --> B
+    G --> B
+```
+
+If compatible state exists in a lower tier, the missing GPU copy can be restored. If no compatible copy exists, the history must be recomputed. During the tool interval, retaining history consumes capacity but performs no inference for that program. Evicting it frees capacity but risks an expensive return. Pinning every paused session forever is also untenable: tools can stall, users can disappear, and new requests still need memory.
+
+As an original decision model, let $p$ be the probability that a program returns during a retention interval $g$, and let $C_{\text{miss}}$ be the incremental cost of losing its state. If the next-best option is restoration from a lower tier, use that cost rather than assuming full recomputation. Let $m$ be the retained bytes and $\lambda$ a changing opportunity cost per byte-second.
+
+$$
+\text{retain when}\qquad pC_{\text{miss}}>\lambda m g.
+$$
+
+The terms must use comparable units, such as a common resource-cost score. This is a reasoning tool, not an implemented policy I am attributing to vLLM or SGLang. Its useful implication is that the right retention decision changes with memory pressure and expected return time.
+
+Together's ThunderAgent engineering post describes scheduling whole agent programs and selectively pausing some programs when their combined KV demand creates pressure. It demonstrates why controlling the number of active workflows can matter even when individual requests already use an optimized engine. {{< cite "thunder-blog" >}}
+
+The associated June 2026 paper evaluates multiple agent workflows and also manages tool environments. Its reported setups include FP8 GLM-4.6 and Qwen-3 deployments on eight-H100 nodes, plus Qwen3-8B on an RTX 5090. It measures agent steps per minute. Those conditions differ from the later blog's synthetic-data deployment, so I would not combine their benchmark numbers into one comparison. {{< cite "thunder-paper" >}}
+
+### A reproducible experiment: interleaving can destroy reuse
+
+I wrote [workload_cache.py](workload_cache.py) to isolate one effect. It counts uncached input tokens for the same 60 calls under different program schedules.
+
+There are 12 independent sessions, each with five turns. Every session starts with 8,192 input tokens. Each call generates 256 tokens; a 512-token tool result arrives before the next call. The model uses whole-session LRU eviction, and counts retained state between calls against a fixed token budget.
+
+For ordinary autoregressive execution in this model, the final sampled output token has not yet been fed through the model. A cached call therefore leaves KV for $P+255$ positions. Its next turn adds 513 uncached input tokens: the final sampled token plus 512 tool-result tokens. Actual engines may impose block alignment and additional boundary recomputation; this toy omits those details.
+
+With perfect reuse, the lower bound is:
+
+$$
+U_{\min}=12\left(8192+4\cdot513\right)=122{,}928.
+$$
+
+With no reuse, all prompt positions are processed on every turn:
+
+$$
+U_{\text{cold}}=12\sum_{t=0}^{4}(8192+768t)=583{,}680.
+$$
+
+The interleaving window controls how many programs belong to a cohort. Window two executes one turn for each of two programs, then their next turns, until both finish; only then does the next cohort start. Window twelve interleaves all programs. Calls themselves execute sequentially in the model.
+
+The core accounting is small:
+
+```python
+# An exact same-session prefix is either retained or absent in this toy.
+hit = retained.pop(session, 0)
+resident -= hit
+uncached += prompt - hit
+
+# Completed programs need no retained state for this finite trace.
+entry = prompt + output_tokens - 1
+if not final_turn and entry <= capacity:
+    while retained and resident + entry > capacity:
+        _, old = retained.popitem(last=False)  # least recently used session
+        resident -= old
+    retained[session] = entry
+    resident += entry
+```
+
+Run the complete script, including invariants and optional figure generation:
+
+```bash
+python3 workload_cache.py
+python3 workload_cache.py --plot  # requires matplotlib
+```
+
+At a retained budget of 65,536 tokens, selected results are:
+
+| Programs interleaved | Uncached input tokens | Extra tokens above perfect reuse |
+|---|---:|---:|
+| 2 | 122,928 | 0 |
+| 6 | 122,928 | 0 |
+| 8 | 365,590 | 242,662 |
+| 12 | 519,174 | 396,246 |
+
+{{< figure src="agent-working-set.svg" caption="Same requests and outputs, different interleaving. Ratios count uncached input tokens; they are not speedups or latency predictions. A larger retained budget moves the pressure point." >}}
+
+Window twelve performs about 4.22 times the minimum uncached-input work at this budget. It still gets some hits as final-turn sessions finish and leave space, so its result is below the completely cold bound.
+
+There are deliberate limits. Whole-session eviction is coarser than paged or radix-based eviction. The budget excludes active execution memory. There are no actual tool durations, kernels, network transfers, cross-session shared prefixes, or client arrival times. Smaller windows defer some programs, but the script does not price that waiting time. It therefore cannot tell us which window maximizes throughput or satisfies an end-to-end deadline.
+
+It does make one claim precisely: scheduling changes the retained working set, which changes the amount of repeated prefill. A real experiment must then measure the utilization and fairness costs of controlling that working set.
+
+### Branching, distributed sessions, and offline workloads
+
+When one agent forks several candidates from a common history, immutable prefix blocks can be shared. Each branch still needs private state after divergence. A physical-memory estimate should count shared blocks once and growing suffixes separately; multiplying the entire history by the branch count overestimates physical memory demand by ignoring shared blocks.
+
+A router must balance that locality against queueing and memory pressure. Keeping a session on one replica can avoid transfers. If that replica is overloaded, moving the session may reduce completion time even after restoration or recomputation. The [routing section](#scaling-out-routing-on-prefixes) works through that comparison and why a stale directory must never authorize reading invalid KV.
+
+For offline synthetic data or RL rollouts, the useful unit may be a completed trajectory, a successful task, or a validated sample. Maximizing tokens per second can reward long, unsuccessful reasoning. I would record output quality and task completion alongside cost, and count retries and abandoned trajectories.
+
+Weight updates create another boundary: old activations are generally incompatible with changed weights. An RL pipeline needs explicit model-version identity and cache invalidation or isolation. A session ID alone is not a sufficient correctness key.
+
+### Benchmark the mixture that will actually arrive
+
+I would compare policies on a matrix, keeping model, precision, parallelism, hardware, and quality criteria fixed:
+
+| Workload | Important variation | Primary measurements |
+|---|---|---|
+| Short independent calls | Arrival rate, small output lengths | Queue delay, end-to-end latency, goodput |
+| Long cold documents | Length tail, burst size | TTFT, prefill utilization, admission delay |
+| Warm long contexts | Hit location and retained fraction | Actual reusable tokens, restore bytes, TTFT |
+| RAG | Retrieval overlap and serialization | Answer quality, prefix reuse, end-to-end latency |
+| Long reasoning | Output-length distribution | Useful-answer latency, token gaps, live KV |
+| Tool-using agents | Return gaps, context growth, branch count | Task latency, repeated prefill, completions per second |
+
+Measure cold-start and warmed operation separately. Replay burst timing and session identity, rather than independently drawing prompt lengths and erasing reuse. For online admission policies, measure from original arrival so waiting outside the engine is not hidden. For agents, let later requests depend on actual tool and model completion when evaluating the whole workflow.
+
+Use the earlier [goodput definition](#slos-and-goodput) with joint request-level targets, and measure individual token gaps as well as TPOT averages. One-token completions need a documented convention because TPOT after the first token has no denominator.
+
+The checked vLLM benchmark CLI supports TTFT, TPOT, and end-to-end request thresholds for goodput, percentile reporting, and timestamp-based trace timing. Check your installed version before using those options. A faithful agent harness needs additional program and tool instrumentation beyond a request benchmark. {{< cite "vllm-bench" >}}
+
+For cache statistics, record both token-weighted reuse and request hit rate, with clear denominators. Then record recomputed tokens, HBM occupancy, bytes restored by tier, transfer contention, evictions before a session returns, and queue time by workload class. A high hit rate that makes new sessions miss their deadlines is not a successful serving policy.
 
 ## Back-of-envelope cheat sheet
 
@@ -1922,24 +2320,18 @@ $\text{BW} = 3.35$ TB/s, 80 GB):
 | KV bytes per token | $2 \cdot L_{\text{layers}} \cdot H_{kv} \cdot d_h \cdot 2$ | 128 KiB |
 | Tokens that fit | $(0.9 \cdot \text{mem} - 2P) / \text{KV per token}$ | ~427k |
 | Ridge point | $F / \text{BW}$ | 295 FLOPs/byte |
-| Prefill time | $(2Pn + 2 L_{\text{layers}} H d_h n^2) / (F \cdot \text{MFU})$ | 2k tokens: 34 ms ideal, ~67 ms real |
+| Prefill time | $(2Pn + 2 L_{\text{layers}} H d_h n^2) / (F \cdot \text{MFU})$ | 2k tokens: 34 ms ideal, ~67 ms at assumed 50% MFU |
 | Decode step | $\max\big((2P + \sum_i \text{ctx}_i \cdot \text{KV}) / \text{BW},\ 2Pb / F\big)$ | batch 64 @ 2k: 9.8 ms |
 | Per-user speed | $1 / \text{TPOT}$ | 205 tok/s at batch 1 |
 | KV transfer | $n \cdot \text{KV per token} / \text{link bandwidth}$ | 70B, 4k tokens: 1.5 ms NVLink, 27 ms at 400 Gb/s |
 
-And the money one. Providers price cached input tokens far below uncached ones; llm-d quotes
-Anthropic's \$3.00 vs \$0.30 per million tokens for Claude Sonnet, a 10x gap
-{{< cite "llmd-kv" >}}. At a hit rate $h$, the blended input price is
+For a token-weighted cache-hit fraction $h$ and an illustrative service that charges only these two input-token rates, the blended price is
 
 $$
-p(h) = (1 - h) \cdot p_{\text{uncached}} + h \cdot p_{\text{cached}}.
+p(h)=(1-h)p_{\mathrm{uncached}}+hp_{\mathrm{cached}}.
 $$
 
-At Baseten's 89% hit rate that's $0.11 \times 3.00 + 0.89 \times 0.30 \approx 0.60$, so
-\$0.60 per million input tokens, 5x cheaper than with no cache. On the provider's side the same
-arithmetic holds for GPU-seconds: prefill work scales with $1 - h$. For agent workloads with
-100:1 input-to-output ratios, prefill *is* the bill, which is why the hit rate is the number
-production teams watch most.
+Actual billing can include cache writes, retention, or other rules. This accounting equation is not a GPU-cost model: retained KV consumes memory, suffix attention still reads the prefix, and restoration or queueing can dominate a hit. Evaluate hit rate together with goodput and task completion.
 
 ## FAQ and interview questions
 
@@ -2032,7 +2424,7 @@ and tensor parallelism (more total memory) all raise throughput.
 <summary><b>What exactly does PagedAttention change?</b></summary>
 
 Memory layout and the attention kernel. The KV cache is stored in fixed-size blocks
-(16 tokens by default) allocated on demand from one pool, and each sequence has a block table
+(a configurable number of tokens) allocated on demand from one pool, and each sequence has a block table
 mapping its logical blocks to physical ones. The attention kernel reads K and V through the
 block table. That removes reservations and external fragmentation, limits internal
 fragmentation to the last block, and lets sequences share blocks (with reference counts and
@@ -2053,11 +2445,7 @@ models{{< cite "baseten-batching" >}}.
 <details>
 <summary><b>Why is vLLM up to 24x faster than Hugging Face generate()?</b></summary>
 
-Two multiplying effects against the 2023 `generate()` loop: continuous batching (no idle slots
-waiting for the longest answer) and PagedAttention (2–5x less KV waste, so much larger
-batches fit). Against TGI, which already had continuous batching, the gap was 2–3x, mostly
-memory. Modern Transformers also has continuous batching and paged attention, so the gap today
-is much smaller than the 2023 headline.
+That is a 2023 comparison against the tested generation baseline, not a current engine ranking. Continuous batching reduced idle slots and paging allowed larger useful batches. Modern Transformers also documents continuous batching and paged attention, so compare current versions on the same model, hardware, workload, and latency target.
 </details>
 
 <details>
@@ -2073,22 +2461,13 @@ near the point where a step becomes compute-bound.
 <details>
 <summary><b>How does SGLang's radix tree differ from vLLM's prefix caching?</b></summary>
 
-vLLM's APC keys each full block by a hash chained from its parent, and matches by walking
-block hashes until the first miss; eviction is LRU over free blocks. SGLang keeps an explicit
-radix tree with token runs on the edges, matches token by token, evicts least-recently-used
-leaves (so shared ancestors survive), and uses the tree to *schedule* requests in prefix order.
-The reuse they find is nearly the same (within one block per request); the radix tree makes
-longest-prefix queries and prefix-aware scheduling natural.
+In the illustrated vLLM full-block path, chained hashes identify completed blocks. A compressed radix tree makes shared token paths and longest-prefix queries explicit. Logical matches are not automatically usable GPU matches: page boundaries, residency, and model-specific cache components still matter. Current SGLang adds separate physical components and locks for different attention and state types; its 2024 paper describes the original design.
 </details>
 
 <details>
 <summary><b>Why does longest-prefix-first scheduling help, and what's the risk?</b></summary>
 
-It processes all requests under one prefix before moving on, like a depth-first walk of the
-radix tree, so each prefix is computed once and evicted only when nobody needs it. SGLang
-proves DFS order is optimal offline when the cache holds at least one request. The risk is
-starvation: requests that share nothing with the cache keep getting pushed back, so real
-schedulers add aging or fairness limits.
+Grouping work around shared paths reduces eviction before reuse. The original SGLang paper gives an offline optimality result under its stated cache-size assumptions. Online arrivals, finite scheduling budgets, and fairness change the problem; cold requests can wait too long. Current SGLang exposes multiple policies rather than one universal scheduling rule.
 </details>
 
 <details>
@@ -2104,32 +2483,19 @@ the warm one is saturated.
 <details>
 <summary><b>Approximate vs precise prefix-aware routing?</b></summary>
 
-Approximate routers infer each worker's cache from their own routing history (SGLang's router,
-llm-d's earlier default). They're cheap and need no worker cooperation, but they drift when
-workers evict blocks. Precise routers consume KV events (block stored or removed) from workers
-and keep a live global index (Dynamo, llm-d's precise scheduler). In llm-d's benchmark,
-precise routing cut P90 TTFT from over 31 s to 0.54 s.
+History-based routing predicts what a worker retained from assigned requests. Event-based routing follows reported store, remove, and reset events, so it has better evidence of actual cache changes. Both can be stale at dispatch time. A shared index does not make worker cache updates and request admission one atomic operation; the worker validates its own state.
 </details>
 
 <details>
 <summary><b>How do you pick the affinity-vs-load trade-off?</b></summary>
 
-Put both in the same unit. Dynamo expresses everything in KV blocks: queued prefill blocks +
-this request's uncached blocks + decode blocks, and takes the minimum. llm-d keeps affinity
-until the warm replica's uncached-token backlog leads the coldest by $\tau$, calibrated in
-prefill chunks. Either way the question is "would the cold replica serve this request sooner,
-even after redoing the prefix?" Calibrate on your own traffic.
+Compare the saved prefill with queue, restore, and transfer costs in consistent units. A worker with the longest prefix can still lose to a cold idle replica. Production heuristics approximate this comparison using blocks, uncached-token backlogs, and tier credits; calibrate the estimates against measured completion times.
 </details>
 
 <details>
 <summary><b>When is prefill/decode disaggregation worth it?</b></summary>
 
-When prompts are long, latency targets are tight, or the model is big enough that prefill and
-decode want different parallelism (large MoE models with wide expert parallelism for decode).
-It costs a KV transfer per request and two pools to size and autoscale. For short prompts or
-low traffic, co-located serving with chunked prefill is simpler and often as good.
-Conditional disaggregation is the middle ground: disaggregate only when the decode worker
-doesn't already hold most of the prompt.
+When the reduction in queueing, interference, or compute cost exceeds handoff and capacity-partitioning costs at the same fleet budget. Prompt length alone is insufficient: retained overlap, simultaneous transfers, effective bandwidth, decoder capacity, and output length matter. Conditional disaggregation can keep a small suffix local when decode already holds its prefix.
 </details>
 
 <details>
@@ -2144,11 +2510,7 @@ about 43 GB, more than half an H100 for one sequence.
 <details>
 <summary><b>Recompute or transfer a cached prefix?</b></summary>
 
-Transfer when $t_0 + L \cdot \text{KV bytes} / \text{bandwidth} < t_{\text{prefill}}(L)$.
-Prefill time grows at least linearly (plus a quadratic attention term) while transfer grows
-linearly after a fixed setup cost, so there's a crossover length above which pulling wins. llm-d
-measured it below 2K tokens for gpt-oss-120b on H200s with RDMA, and around 8.7K tokens on a
-753B MoE where transfers had a 1.2-second floor. Measure it on your fabric.
+Compare setup plus transfer, installation, and queueing with the recomputation avoided. Use effective shared bandwidth and the actual engine layout. A crossover measured on one model and fabric is not a universal threshold, and a cached copy that is incompatible with the request cannot be used regardless of transfer speed.
 </details>
 
 <details>
@@ -2162,10 +2524,7 @@ Baseten saw TPOT drop 34% alongside a 50% TTFT drop from KV-aware routing.
 <details>
 <summary><b>What does TTFT actually consist of?</b></summary>
 
-Network and tokenization, plus queueing (waiting for a slot or for memory), plus prefill of
-the *uncached* part of the prompt, plus, with disaggregation, the KV transfer to the decode
-worker. Under load, queueing usually dominates, which is why load-aware routing matters as
-much as cache hits.
+Network, tokenization, admission and queueing, uncached prefill, and any restore or handoff on the path to the first emitted token. Some P/D implementations emit a first token from prefill before decode takes over; others wait. Measure the actual streaming timeline instead of always equating handoff completion with TTFT.
 </details>
 
 <details>
@@ -2176,6 +2535,72 @@ At batch 1 the step time is roughly weight bytes ÷ memory bandwidth: 16 GB ÷ 3
 for Llama 3 8B on an H100, about 205 tokens/s. Going faster per user takes fewer bytes
 (quantization), more bandwidth, splitting weights over more GPUs, or producing more than one
 token per weight read (speculative decoding).
+</details>
+
+<details>
+<summary><b>What is the difference between a block hash and a physical block ID?</b></summary>
+
+The hash names a context-dependent computed prefix; the ID names a slot in a local memory pool. An eviction can reuse the ID for a different hash.
+</details>
+
+<details>
+<summary><b>Why pin a cache hit before allocating more memory?</b></summary>
+
+Without a live-use count, allocation pressure could evict a block the new request is about to read. The request must own a protected reference until it is finished with that state.
+</details>
+
+<details>
+<summary><b>Can a 100% prefix hit still fail admission?</b></summary>
+
+Yes. Generating the next token can need a new KV slot or page. In the two-block model, C matches eight tokens but cannot allocate space for token 9 while both hit blocks are pinned.
+</details>
+
+<details>
+<summary><b>Why is a TP rank not automatically a separate routing target?</b></summary>
+
+TP ranks cooperate on one model execution and own shards of its state. Route to the serving endpoint or group whose full topology can process the request; independent DP copies are the natural separate cache destinations.
+</details>
+
+<details>
+<summary><b>Would a shared strongly consistent index make routing linearizable with cache state?</b></summary>
+
+No. A transaction on metadata does not atomically include the worker's later eviction or the request's eventual admission. It can make index replicas agree on an index snapshot, while physical residency still changes asynchronously.
+</details>
+
+<details>
+<summary><b>How would you recover from missed removal events?</b></summary>
+
+I would fence old worker incarnations with epochs, detect sequence gaps, mark the view unknown, and rebuild it from a worker snapshot or replay stream. That is a proposed design; do not assume an arbitrary implementation has these mechanisms.
+</details>
+
+<details>
+<summary><b>What makes a transferred block safe to consume?</b></summary>
+
+Producer writes complete, transfer completes, destination writes become visible to the consumer GPU, and the block belongs to the expected request generation. A submitted descriptor or “transfer started” event is insufficient.
+</details>
+
+<details>
+<summary><b>What happens after cancellation or timeout?</b></summary>
+
+The system must stop new work, retire the attempt, handle any in-flight transfer safely, and free source/destination blocks only after late writes cannot corrupt reuse. Retry may recompute if remote KV is no longer valid; exact policy is connector-specific.
+</details>
+
+<details>
+<summary><b>Why can higher agent concurrency increase repeated prefill?</b></summary>
+
+More simultaneously retained histories can exceed cache capacity, so sessions lose state while waiting for tools. The workload trace isolates that repeated work. A real admission policy must also measure the waiting time and utilization it sacrifices.
+</details>
+
+<details>
+<summary><b>Should a paused agent's KV always be pinned?</b></summary>
+
+No. Retention consumes capacity while the program is idle. Compare return likelihood, state size, restoration or recomputation cost, and current memory pressure; protect active readers without promising indefinite retention to every paused program.
+</details>
+
+<details>
+<summary><b>Why is a single request benchmark inadequate for agents?</b></summary>
+
+It omits dependencies, tool execution, history growth, and task completion. Keep per-request latency metrics, but also measure successful trajectories, program completion time, quality, retries, and total cost.
 </details>
 
 ## Further reading
