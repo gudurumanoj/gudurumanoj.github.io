@@ -2,30 +2,62 @@
 {{- $cfg := site.Params.manlog }}
 <div class="ml-home" data-pagefind-ignore="all">
   <section class="ml-intro">
-    {{- with $cfg.avatar }}
-    <img class="ml-avatar" src="{{ . | relURL }}" alt="{{ $cfg.name }}" width="112" height="112">
-    {{- else }}
-    <div class="ml-avatar ml-monogram" aria-hidden="true">
-      {{- range first 2 (split ($cfg.name | default site.Title) " ") }}{{ substr . 0 1 }}{{ end -}}
-    </div>
-    {{- end }}
-    <div>
+    <header class="ml-intro-heading">
       <h1 class="ml-name">{{ $cfg.name | default site.Title }}</h1>
       {{- with $cfg.tagline }}<p class="ml-tagline">{{ . }}</p>{{ end }}
-      {{- with $cfg.socials }}
-      <ul class="ml-socials">
-        {{- range . }}
-        <li><a href="{{ .url | relURL }}" title="{{ .name }}" aria-label="{{ .name }}"
-          {{- if hasPrefix .url "http" }} target="_blank" rel="noopener me"{{ end }}>
-          {{- partial "manlog/icon.html" .icon }}</a></li>
-        {{- end }}
-      </ul>
-      {{- end }}
+    </header>
+
+    {{- with .Params.intro }}
+    <div class="ml-bio md-content post-content">{{ . | markdownify }}</div>
+    {{- end }}
+
+    {{- $photo := false }}
+    {{- with $cfg.avatar }}{{ $photo = resources.Get . }}{{ end }}
+    {{- with $photo }}
+    {{- $portrait := .Fill "640x640 Center webp q85" }}
+    <img class="ml-photo" src="{{ $portrait.RelPermalink }}" alt="{{ $cfg.name }}" width="{{ $portrait.Width }}" height="{{ $portrait.Height }}" fetchpriority="high" decoding="async">
+    {{- else }}
+    <div class="ml-photo ml-photo-placeholder" role="img" aria-label="Portrait placeholder for {{ $cfg.name }}">
+      <span class="ml-photo-initials" aria-hidden="true">{{ range first 2 (split ($cfg.name | default site.Title) " ") }}{{ substr . 0 1 }}{{ end }}</span>
+      <span aria-hidden="true">Photo coming soon</span>
     </div>
+    {{- end }}
+
+    {{- with $cfg.socials }}
+    <ul class="ml-socials" aria-label="Find me online">
+      {{- range . }}
+      <li><a href="{{ .url | relURL }}"
+        {{- if hasPrefix .url "http" }} target="_blank" rel="noopener me"{{ end }}>
+        {{- partial "manlog/icon.html" .icon }}<span>{{ .name }}</span></a></li>
+      {{- end }}
+    </ul>
+    {{- end }}
   </section>
 
   {{- with .Content }}
   <section class="ml-intro-body md-content post-content">{{ . }}</section>
+  {{- end }}
+
+  {{- with .Params.activity }}
+  <section class="ml-activity">
+    <div class="ml-activity-heading">
+      <h2 id="activity-heading">Activity</h2>
+      <span id="activity-hint">Scroll for earlier entries <span aria-hidden="true">↓</span></span>
+    </div>
+    <div class="ml-activity-scroll" tabindex="0" role="region" aria-labelledby="activity-heading" aria-describedby="activity-hint">
+      <ol class="ml-timeline" role="list">
+        {{- range . }}
+        <li class="ml-timeline-entry">
+          <time datetime="{{ .date }}">{{ replace .date "-" "." }}</time>
+          <div class="ml-timeline-body">
+            <h3>{{ with .url }}<a href="{{ . }}">{{ end }}{{ .title }}{{ with .url }}</a>{{ end }}</h3>
+            {{- with .note }}<p>{{ . }}</p>{{ end }}
+          </div>
+        </li>
+        {{- end }}
+      </ol>
+    </div>
+  </section>
   {{- end }}
 </div>
 {{- end }}

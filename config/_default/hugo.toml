@@ -11,6 +11,14 @@ summaryLength = 40
 # Keep tag names exactly as written in front matter (no auto Title Case).
 capitalizeListTitles = false
 
+# Keep source portraits separate from Hugo's generated resources/_gen/ cache.
+[[module.mounts]]
+  source = "assets"
+  target = "assets"
+[[module.mounts]]
+  source = "resources/profile"
+  target = "assets/profile"
+
 [pagination]
   pagerSize = 12
 

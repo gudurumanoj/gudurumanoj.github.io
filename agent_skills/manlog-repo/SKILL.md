@@ -22,8 +22,8 @@ Read those only for detail not covered here. Agent skills live in `agent_skills/
   in the working tree and list them at the end.
 - Light theme only: warm cream + terracotta palette modelled on posttrainbench.com. The dark toggle
   is disabled; don't reintroduce dark styling.
-- The landing page is a personal intro only (no post cards, no blog pointers). Nav bar has only
-  **Blog**. No CV/resume on the site.
+- The landing page has a brief personal intro, a blog link, interests, and a compact scrollable
+  **Activity** timeline. No post cards or CV/resume. Nav bar has only **Blog**.
 - Don't invent facts about the owner (job, papers, affiliations). Use clearly marked placeholders.
 - Keep `README.md` / `WRITING.md` in sync when behaviour changes.
 
@@ -38,7 +38,8 @@ hugo -D && npx -y pagefind --site public --output-path static/pagefind   # local
 
 On the owner's Linux box Hugo is at `~/.local/bin/hugo`. Two `WARN deprecated: .Language.*`
 lines come from PaperMod and are harmless; anything else (math errors, missing files) is real.
-Clean up `public/`, `resources/`, `.hugo_build.lock` after local builds (all git-ignored).
+Clean up generated `public/`, `resources/_gen/`, `.hugo_build.lock` after local builds (all
+git-ignored). **Never delete `resources/profile/`**: it contains the source portrait.
 
 ## File map
 
@@ -48,13 +49,13 @@ config/_default/
   params.toml    PaperMod params at top; [manlog] section (name, tagline, avatar, socials, katexCSS, mermaidJS)
   menus.toml     nav bar ([[main]] blocks); currently only Blog
 content/
-  _index.md      landing page text
+  _index.md      landing page text + intro and activity front matter (newest first)
   search.md      /search/ (layout: pagefind);  archives.md  /archives/ (PaperMod layout)
   blog/_index.md             /blog/ title + description
   topics/<slug>/_index.md    the fixed topic list: title (display name, e.g. "C++"), weight (bar order), aliases (old /tags/<slug>/)
   blog/<slug>/index.md       one post per folder (page bundle) with its images/demos; flat, no categories
 layouts/                     man'log layer; overrides the theme
-  home.html                  landing: avatar or monogram, name, tagline, socials, .Content
+  home.html                  landing: name/role, bio + portrait, labeled socials, .Content, activity
   blog/list.html, term.html  card grids + topic bar via _partials/manlog/listing.html; term.html warns on unlisted topics
   pagefind.html              search page (Pagefind Component UI, faceted topic + tag filters)
   _markup/render-passthrough.html        $..$/$$..$$ -> KaTeX HTML at build time (transform.ToMath)
@@ -75,13 +76,28 @@ assets/js/mermaid-init.js    Mermaid loader + light palette themeVariables
 assets/js/code-blocks.js     copy + show-all buttons for code panels; tab bar for .ml-tabs groups
 assets/js/sidenotes.js       footnotes -> absolutely positioned .ml-sidenote in the right margin (>=1360px)
 archetypes/blog.md           front matter for `hugo new blog/...`
-static/                      favicons (Twemoji 🪵 log), site.webmanifest
+resources/profile/           source portrait (photo.jpg); mounted into assets/profile, never delete as cache
+static/                      favicons (Twemoji 🪵 log, tilted 12° counterclockwise), site.webmanifest
 pagefind.yml                 index only blog/**/index.html; exclude_selectors for UI chrome, katex, mermaid
 .github/workflows/hugo.yml   build (HUGO_VERSION) + pagefind + deploy-pages on push to master
 ```
 
 ## How things work
 
+- **Homepage intro and portrait**: `content/_index.md` has an `intro` Markdown field for the bio.
+  `params.toml` holds name, tagline, and labeled social links. Add `resources/profile/photo.jpg`
+  to replace the photo placeholder; `manlog.avatar` is its asset path (`profile/photo.jpg`).
+  `hugo.toml` mounts that source folder into `assets/profile` alongside the normal `assets`
+  mount. Hugo generates a 640px square WebP. Missing images show a placeholder, not a broken
+  image. The portrait sits beside the bio on desktop and stacks above it on mobile.
+- **Homepage activity**: `content/_index.md` front matter has an `activity` list, manually ordered
+  newest first. Each entry has a quoted `date` (`YYYY-MM` or `YYYY` if the month is unknown),
+  `title`, optional `url`, and optional `note`. `home.html` renders a connected timeline with a
+  focusable, labelled scroll region; CSS caps it at 340px and expands it for print. Keep copy
+  short and use verified dates. The homepage body can link to `/blog/`.
+- **Log icon**: the rotation is baked into `static/favicon.svg`, shared by the header and SVG
+  favicon. Regenerate all PNG/ICO fallbacks from that SVG when changing it, including Apple
+  and Android icons, so every appearance matches.
 - **Theme-agnostic layer**: our templates only fill the `main` block, and everything we add to
   `<head>` goes through `head-extras.html`. Swapping `theme` in `hugo.toml` should need only
   config changes (verified with Ananke).

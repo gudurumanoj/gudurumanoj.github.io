@@ -409,15 +409,18 @@ Tables use standard Markdown pipes. Raw HTML is allowed anywhere.
 
 ## The landing page
 
-The home page is about you, not the blog. At the top it shows your name, an optional one-line
-tagline, a photo or monogram, and social icons. Below that comes whatever you write in
-`content/_index.md`.
+The home page opens with your name and role, a short bio beside a square portrait, and labeled
+social links. Below that are a link to the blog, interests, and an Activity timeline.
+Keep the copy simple and brief, with no resume or post feed.
 
-- **Text**: edit `content/_index.md` (normal Markdown). `##` headings become small section
-  titles.
-- **Name, tagline, photo, social links**: edit the `[manlog]` section of
-  `config/_default/params.toml`. For a photo, put a square image at
-  `static/images/avatar.jpg` and set `avatar = "images/avatar.jpg"`.
+- **Bio**: edit the `intro` field in `content/_index.md` front matter; it supports Markdown.
+- **Other text**: edit the Markdown body in `content/_index.md`. `##` headings become small
+  section titles.
+- **Name, tagline, social links**: edit the `[manlog]` section of `config/_default/params.toml`.
+- **Photo**: add `resources/profile/photo.jpg` and rebuild; the placeholder is replaced
+  automatically. Hugo creates a 640 × 640 WebP with a centre crop. For another filename or
+  image format, update `manlog.avatar` (e.g. `profile/photo.png`). Keep `resources/profile/`
+  when cleaning build output; only `resources/_gen/` is disposable.
 - **Social icons available**: `github`, `x`, `linkedin`, `email`, `scholar`, `rss`, `link`.
 
 ```toml
@@ -427,28 +430,20 @@ tagline, a photo or monogram, and social icons. Below that comes whatever you wr
   icon = "email"
 ```
 
-A typical academic-style layout for `content/_index.md` (keep the sections you need):
+Edit the bio in `intro` and interests in the body of `content/_index.md`. Activity entries
+live in that file's YAML front matter, ordered newest first:
 
-```markdown
-Hi, I'm Manoj. Two or three sentences: what you work on, where, and what you care about.
-
-## Currently
-
-Working on ... at [Place](https://...). Previously ... at ....
-
-## Interests
-
-Large-scale training, numerical methods, ...
-
-## Publications
-
-- **Paper title.** A. Author, **M. Guduru**, B. Author. *Venue* 2026.
-  [paper](https://arxiv.org/abs/...) · [code](https://github.com/...)
-
-## News
-
-- **Oct 2026**: Something happened.
+```yaml
+activity:
+  - date: "2026-03"
+    title: "BhashaKritika"
+    url: "https://ojs.aaai.org/index.php/AAAI/article/view/40524"
+    note: "Synthetic pretraining data for Indic languages. Published at AAAI 2026."
 ```
+
+Quote dates and use `YYYY-MM`, or just `YYYY` when the month is unknown. The timeline displays
+them as `YYYY.MM`. `url` and `note` are optional. Keep entries to a title and a short sentence;
+the timeline scrolls within a fixed height, supports keyboard scrolling, and expands in print.
 
 ## The nav bar
 

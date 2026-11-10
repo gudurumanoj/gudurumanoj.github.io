@@ -22,7 +22,7 @@ to GitHub Pages by GitHub Actions.
 
 | URL | What it shows | Rendered by |
 |-----|---------------|-------------|
-| `/` | Personal landing page: name, photo/monogram, social links, intro text | `layouts/home.html` |
+| `/` | Personal intro, interests, blog link, and scrollable activity timeline | `layouts/home.html` |
 | `/blog/` | All posts as a paginated card grid, a topic bar and a search button | `layouts/blog/list.html` |
 | `/blog/<post>/` | A post | the theme's single-page template |
 | `/topics/`, `/topics/<topic>/` | Topic list; card grid per topic, plus a row of the tags used in it | theme (`/topics/`), `layouts/term.html` |
@@ -46,7 +46,7 @@ sets the display name and order), and `tags`, free-form specific labels that nee
 │   ├── params.toml      # [manlog] settings for our layer + theme-specific params
 │   └── menus.toml       # top navigation bar
 ├── content/             # everything you write (Markdown)
-│   ├── _index.md        # landing page text (your intro)
+│   ├── _index.md        # landing page text + intro and activity front matter
 │   ├── search.md, archives.md
 │   ├── topics/<slug>/_index.md  # the topic list: display name + order (weight)
 │   └── blog/
@@ -86,7 +86,8 @@ sets the display name and order), and `tags`, free-form specific labels that nee
 │       ├── sidenotes.js   # footnotes -> right-margin side notes on wide screens
 │       └── mermaid-init.js
 ├── archetypes/blog.md     # front matter template used by `hugo new blog/...`
-├── static/                # copied as-is: favicons, webmanifest, (optional) avatar
+├── resources/profile/     # source portrait: add photo.jpg (see its README)
+├── static/                # copied as-is: favicons, webmanifest
 ├── themes/PaperMod/       # current theme (git submodule)
 ├── pagefind.yml           # what the search index includes
 └── .github/workflows/hugo.yml   # build + deploy to GitHub Pages
@@ -169,10 +170,18 @@ flowchart LR
   to `blog/**/index.html`; listing pages opt out with `data-pagefind-ignore`). Tags become
   the search filters via `<meta data-pagefind-filter>` tags (`topic` and `tag`) in `head-extras.html`.
   The index is static files under `/pagefind/`; there is no server.
+- **Homepage**: `content/_index.md` holds `intro` and `activity` front matter (newest first),
+  plus the interests and blog link in its Markdown body. The top pairs a name and role with
+  a bio, right-side portrait, and labeled social links. Add `resources/profile/photo.jpg`
+  to replace the placeholder automatically; Hugo mounts that directory into `assets/profile`
+  and generates a square WebP. `home.html` renders the activity as a connected,
+  dated timeline with a keyboard-focusable scroll region. It uses CSS only and expands
+  fully when printed. Keep it brief; there is no resume or post feed on the homepage.
 - **Favicon**: the wood-log emoji from [Twemoji](https://github.com/jdecked/twemoji)
   (CC-BY 4.0). `static/favicon.svg` plus PNG/ICO fallbacks, referenced by PaperMod's
   `params.assets` and by `head-extras.html`; the header logo uses the same SVG. To change it,
-  replace those files (any square image works).
+  edit the SVG and regenerate the PNG/ICO files from it. The SVG includes a 12-degree
+  counterclockwise tilt, so the header, browser tabs, and app icons stay consistent.
 
 ## Local development
 
@@ -242,8 +251,8 @@ Notes:
   internet connection to render properly in the preview.
 - To push from the new machine, sign in to GitHub first (`gh auth login`, or set up SSH
   keys). The live site updates about a minute after each push to `master`.
-- Delete `public/`, `resources/` and `.hugo_build.lock` whenever you like; they are
-  build output and are git-ignored.
+- Delete `public/`, `resources/_gen/` and `.hugo_build.lock` whenever you like; they are
+  build output and are git-ignored. Keep `resources/profile/`: it holds the source portrait.
 
 ## Deployment
 

@@ -39,11 +39,11 @@ hideFooter = false
 # ---------------------------------------------------------------------------
 [manlog]
   name = "Manoj Guduru"
-  # One line under your name on the landing page, e.g. "ML engineer at Acme · Hyderabad". Empty hides it.
-  tagline = ""
-  # Put a square photo at static/images/avatar.jpg and set this to "images/avatar.jpg".
-  # Leave empty to show a monogram instead.
-  avatar = ""
+  # One line under your name on the landing page. Empty hides it.
+  tagline = "AI Research · Fractal"
+  # Add resources/profile/photo.jpg; the asset mount makes it available at this path.
+  # A missing file shows a placeholder. Hugo crops the photo to a square for display.
+  avatar = "profile/photo.jpg"
   # The right-side table-of-contents rail appears on posts with at least this many h2/h3 headings.
   tocMinHeadings = 3
   # Ctrl/Cmd+K search dialog on every page (needs the Pagefind index, see README.md).
@@ -60,19 +60,15 @@ hideFooter = false
     name = "GitHub"
     url = "https://github.com/gudurumanoj"
     icon = "github"
-  # [[manlog.socials]]
-  #   name = "Email"
-  #   url = "mailto:you@example.com"
-  #   icon = "email"
-  # [[manlog.socials]]
-  #   name = "LinkedIn"
-  #   url = "https://www.linkedin.com/in/<handle>/"
-  #   icon = "linkedin"
-  # [[manlog.socials]]
-  #   name = "Google Scholar"
-  #   url = "https://scholar.google.com/citations?user=<id>"
-  #   icon = "scholar"
   [[manlog.socials]]
-    name = "RSS"
-    url = "/index.xml"
-    icon = "rss"
+    name = "LinkedIn"
+    url = "https://www.linkedin.com/in/guduru-manoj-49957a222/"
+    icon = "linkedin"
+  [[manlog.socials]]
+    name = "Scholar"
+    url = "https://scholar.google.com/citations?user=4pEzB7EAAAAJ&hl=en"
+    icon = "scholar"
+  [[manlog.socials]]
+    name = "Email"
+    url = "mailto:gudurumanoj271102@gmail.com"
+    icon = "email"

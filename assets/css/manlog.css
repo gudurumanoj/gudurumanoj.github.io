@@ -64,54 +64,167 @@
 }
 
 /* ---------- landing page ---------- */
-.ml-home > section { max-width: 760px; margin-inline: auto; }
+.main:has(.ml-home) { max-width: calc(1000px + var(--gap, 24px) * 2); }
+.ml-home > section { margin-inline: auto; }
 
 .ml-intro {
-  display: flex;
-  align-items: center;
-  gap: 28px;
-  margin: 48px auto 28px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  grid-template-areas: "heading heading" "bio photo" "social photo";
+  align-items: start;
+  gap: 28px 48px;
+  margin: 40px auto 32px;
 }
-
-.ml-avatar {
-  flex: none;
-  width: 112px;
-  height: 112px;
-  border-radius: 50%;
+.ml-intro-heading { grid-area: heading; }
+.ml-name {
+  margin: 0 0 10px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(38px, 5vw, 60px);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -1.5px;
+  color: var(--ml-text);
+}
+.ml-tagline { color: var(--ml-muted); margin: 0; font-family: var(--ml-mono); font-size: 16px; }
+.ml-bio { grid-area: bio; min-width: 0; margin: 0; }
+.ml-bio p:last-child { margin-bottom: 0; }
+.ml-photo {
+  grid-area: photo;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  height: auto;
+  border: 3px solid var(--ml-border);
+  border-radius: 18px;
   object-fit: cover;
 }
-
-.ml-monogram {
-  display: grid;
-  place-items: center;
-  font-size: 40px;
-  font-weight: 600;
-  letter-spacing: 1px;
-  color: #fff;
-  background: linear-gradient(135deg, #b07a5c, #6b4a3a);
+.ml-photo-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--ml-muted);
+  background: var(--ml-soft);
+  font-size: 12px;
 }
-
-.ml-name { font-size: 36px; line-height: 1.15; margin: 0 0 6px; color: var(--ml-text); }
-.ml-tagline { color: var(--ml-muted); margin: 0 0 12px; font-size: 17px; }
-
-.ml-socials { display: flex; gap: 6px; padding: 0; margin: 0; list-style: none; }
+.ml-photo-initials { font-family: Georgia, "Times New Roman", serif; font-size: 64px; line-height: 1.2; color: var(--ml-accent); }
+.ml-socials { grid-area: social; display: flex; flex-wrap: wrap; gap: 10px; padding: 0; margin: 0; list-style: none; }
 .ml-socials a {
   display: inline-flex;
-  padding: 7px;
-  border-radius: 50%;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 9px 15px;
+  border: 1px solid var(--ml-border);
+  border-radius: 999px;
   color: var(--ml-muted);
-  transition: color 0.15s, background 0.15s;
+  font-family: var(--ml-mono);
+  font-size: 14px;
+  transition: color 0.15s, border-color 0.15s;
 }
-.ml-socials a:hover { color: var(--ml-text); background: var(--ml-card-bg); }
+.ml-socials svg { width: 17px; height: 17px; flex: none; }
+.ml-socials a:hover { color: var(--ml-accent-text); border-color: var(--ml-accent); }
+.ml-socials a:focus-visible { outline: 2px solid var(--ml-accent); outline-offset: 3px; }
 
 .ml-intro-body { margin-bottom: 40px; }
+.ml-intro-body > p { max-width: 760px; }
 .ml-intro-body h2 { font-size: 20px; margin: 32px 0 12px; }
 .ml-intro-body ul { padding-inline-start: 20px; }
 .ml-intro-body li { margin-bottom: 6px; }
 
+.ml-activity { margin-bottom: 40px; }
+.ml-activity-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-bottom: 18px;
+}
+.ml-activity-heading h2 { margin: 0; font-size: 20px; }
+.ml-activity-heading > span { color: var(--ml-muted); font-size: 13px; }
+.ml-activity-scroll {
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 4px 12px 4px 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ml-border) transparent;
+  scrollbar-gutter: stable;
+}
+.ml-activity-scroll:focus-visible {
+  outline: 2px solid var(--ml-accent);
+  outline-offset: 6px;
+  border-radius: 2px;
+}
+.ml-timeline {
+  --ml-date-width: 72px;
+  --ml-timeline-gap: 36px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ml-timeline-entry {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--ml-date-width) minmax(0, 1fr);
+  column-gap: var(--ml-timeline-gap);
+  padding: 12px 0 22px;
+}
+.ml-timeline-entry::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--ml-date-width) + var(--ml-timeline-gap) / 2);
+  border-left: 2px solid var(--ml-border);
+}
+.ml-timeline-entry::after {
+  content: "";
+  position: absolute;
+  top: 17px;
+  left: calc(var(--ml-date-width) + var(--ml-timeline-gap) / 2 - 7px);
+  width: 10px;
+  height: 10px;
+  border: 3px solid var(--ml-bg);
+  border-radius: 50%;
+  background: var(--ml-accent);
+  box-shadow: 0 0 0 1px var(--ml-border);
+  box-sizing: content-box;
+}
+.ml-timeline-entry time {
+  padding-top: 3px;
+  color: var(--ml-muted);
+  font-family: var(--ml-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: right;
+}
+.ml-timeline-body h3 { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.6; }
+.ml-timeline-body a { text-decoration: underline; text-decoration-color: var(--ml-border); text-underline-offset: 3px; }
+.ml-timeline-body a:hover { color: var(--ml-accent-text); text-decoration-color: currentColor; }
+.ml-timeline-body a:focus-visible { outline: 2px solid var(--ml-accent); outline-offset: 3px; }
+.ml-timeline-body p { margin: 3px 0 0; font-size: 14px; line-height: 1.6; color: var(--ml-muted); }
+
+@media (max-width: 800px) {
+  .ml-intro { grid-template-columns: minmax(0, 1fr) 200px; column-gap: 28px; }
+}
 @media (max-width: 600px) {
-  .ml-intro { flex-direction: column; align-items: flex-start; gap: 18px; margin-top: 24px; }
-  .ml-name { font-size: 30px; }
+  .ml-intro {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "heading" "photo" "bio" "social";
+    gap: 24px;
+    margin-top: 24px;
+  }
+  .ml-photo { width: 200px; max-width: 100%; }
+  .ml-tagline { font-size: 14px; }
+  .ml-timeline { --ml-date-width: 62px; --ml-timeline-gap: 30px; }
+  .ml-timeline-entry time { font-size: 12px; }
+}
+
+@media print {
+  .ml-activity-scroll { max-height: none; overflow: visible; }
+  .ml-activity-heading > span { display: none; }
 }
 
 /* ---------- listing pages ---------- */
