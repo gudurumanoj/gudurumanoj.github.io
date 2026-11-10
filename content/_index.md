@@ -5,11 +5,11 @@ intro: |
 
   I'm interested in how language models learn, reason, and use tools. My recent work includes test-time aggregation and automating post-training experiments.
 activity:
-  - date: "2026"
+  - date: "2026-07"
     title: "To Aggregate or Not to Aggregate?"
     url: "https://openreview.net/forum?id=lDg0x629Zp"
     note: "Our work on test-time aggregation. AI4Science at ICML and NeurIPS 2026."
-  - date: "2026-03"
+  - date: "2026-01"
     title: "BhashaKritika"
     url: "https://ojs.aaai.org/index.php/AAAI/article/view/40524"
     note: "Synthetic pretraining data for Indic languages. Published at AAAI 2026."
