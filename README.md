@@ -181,7 +181,7 @@ flowchart LR
   (CC-BY 4.0). `static/favicon.svg` plus PNG/ICO fallbacks, referenced by PaperMod's
   `params.assets` and by `head-extras.html`; the header logo uses the same SVG. To change it,
   edit the SVG and regenerate the PNG/ICO files from it. The SVG includes a 12-degree
-  counterclockwise tilt, so the header, browser tabs, and app icons stay consistent.
+  clockwise tilt, so the header, browser tabs, and app icons stay consistent.
 
 ## Local development
 

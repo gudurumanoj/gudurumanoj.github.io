@@ -77,7 +77,7 @@ assets/js/code-blocks.js     copy + show-all buttons for code panels; tab bar fo
 assets/js/sidenotes.js       footnotes -> absolutely positioned .ml-sidenote in the right margin (>=1360px)
 archetypes/blog.md           front matter for `hugo new blog/...`
 resources/profile/           source portrait (photo.jpg); mounted into assets/profile, never delete as cache
-static/                      favicons (Twemoji 🪵 log, tilted 12° counterclockwise), site.webmanifest
+static/                      favicons (Twemoji 🪵 log, tilted 12° clockwise), site.webmanifest
 pagefind.yml                 index only blog/**/index.html; exclude_selectors for UI chrome, katex, mermaid
 .github/workflows/hugo.yml   build (HUGO_VERSION) + pagefind + deploy-pages on push to master
 ```
