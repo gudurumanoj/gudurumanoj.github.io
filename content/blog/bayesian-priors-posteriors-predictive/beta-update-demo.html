@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Beta prior to posterior explorer</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #fdfcf8; color: #2d2a23; font: 15px/1.45 system-ui, sans-serif; }
+  main { max-width: 900px; margin: auto; padding: 16px; }
+  h1 { font-size: 20px; margin: 0 0 5px; }
+  p { margin: 4px 0 13px; }
+  .controls { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px 24px; }
+  label { display: grid; grid-template-columns: 165px 1fr 25px; align-items: center; gap: 8px; }
+  input[type=range] { width: 100%; accent-color: #a66b4f; }
+  canvas { width: 100%; height: 255px; margin-top: 12px; display: block; }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; margin: 6px 0; }
+  .swatch { width: 16px; height: 3px; display: inline-block; vertical-align: middle; margin-right: 5px; }
+  .cards { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; margin-top: 10px; }
+  .card { border: 1px solid #d8d0c5; border-radius: 7px; padding: 9px; background: #fff; }
+  .card strong { display: block; font-size: 17px; }
+  .small { font-size: 12px; color: #5f5a52; }
+  @media(max-width:700px) { .controls,.cards { grid-template-columns:1fr; } label { grid-template-columns: 150px 1fr 25px; } canvas { height: 220px; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>How a Beta prior updates</h1>
+  <p>Choose prior shapes and observe successes/failures. The curves are densities for the unknown Bernoulli probability; the outcomes themselves are binary.</p>
+  <div class="controls">
+    <label>Prior α <input id="alpha" type="range" min="1" max="10" value="2"><output id="alphaOut">2</output></label>
+    <label>Prior β <input id="beta" type="range" min="1" max="10" value="2"><output id="betaOut">2</output></label>
+    <label>Successes <input id="successes" type="range" min="0" max="15" value="7"><output id="successesOut">7</output></label>
+    <label>Failures <input id="failures" type="range" min="0" max="15" value="3"><output id="failuresOut">3</output></label>
+  </div>
+  <canvas id="plot" role="img" aria-label="Prior and posterior Beta density curves over probability values from zero to one"></canvas>
+  <div class="legend"><span><i class="swatch" style="background:#a66b4f"></i>Prior</span><span><i class="swatch" style="background:#417e82"></i>Posterior</span></div>
+  <div class="cards" aria-live="polite">
+    <div class="card"><span>Posterior</span><strong id="posteriorName"></strong><span class="small">Prior shapes plus observed counts</span></div>
+    <div class="card"><span>Next success probability</span><strong id="nextMean"></strong><span class="small">Posterior mean, not posterior mode</span></div>
+    <div class="card"><span>Next two both succeed</span><strong id="twoSuccess"></strong><span class="small">Predictive integration; plug-in value shown below</span></div>
+  </div>
+  <p id="explanation" class="small" aria-live="polite"></p>
+</main>
+<script>
+(() => {
+  'use strict';
+  const ids = ['alpha', 'beta', 'successes', 'failures'];
+  const inputs = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
+  const canvas = document.getElementById('plot');
+  const ctx = canvas.getContext('2d');
+  function logFactorial(n) { let v = 0; for (let k = 2; k <= n; k++) v += Math.log(k); return v; }
+  // All shapes are positive integers here, so B(a,b)=(a-1)!(b-1)!/(a+b-1)!.
+  function betaPdf(x, a, b) {
+    const logB = logFactorial(a - 1) + logFactorial(b - 1) - logFactorial(a + b - 1);
+    return Math.exp((a - 1) * Math.log(x) + (b - 1) * Math.log(1 - x) - logB);
+  }
+  function draw() {
+    const a = +inputs.alpha.value, b = +inputs.beta.value;
+    const s = +inputs.successes.value, f = +inputs.failures.value;
+    const A = a + s, B = b + f, total = A + B;
+    ids.forEach(id => { document.getElementById(id + 'Out').value = inputs[id].value; });
+    document.getElementById('posteriorName').textContent = `Beta(${A}, ${B})`;
+    const mean = A / total;
+    const both = A * (A + 1) / (total * (total + 1));
+    document.getElementById('nextMean').textContent = mean.toFixed(3);
+    document.getElementById('twoSuccess').textContent = both.toFixed(3);
+    document.getElementById('explanation').textContent =
+      `Using the posterior mean as a fixed probability gives ${ (mean * mean).toFixed(3) } for two successes. Integrating over the shared uncertain probability gives ${both.toFixed(3)}.`;
+    canvas.setAttribute('aria-label', `Beta(${a}, ${b}) prior and Beta(${A}, ${B}) posterior density curves. Posterior mean ${mean.toFixed(3)}.`);
+
+    const dpr = window.devicePixelRatio || 1;
+    const width = Math.max(300, Math.round(canvas.clientWidth));
+    const height = Math.max(180, Math.round(canvas.clientHeight));
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    const left = 48, right = width - 12, top = 28, bottom = height - 42;
+    const samples = Array.from({length:301}, (_, i) => {
+      const x = Math.max(1e-8, Math.min(1 - 1e-8, i / 300));
+      return [x, betaPdf(x, a, b), betaPdf(x, A, B)];
+    });
+    const peak = Math.max(1, ...samples.flatMap(row => row.slice(1))) * 1.12;
+    ctx.strokeStyle = '#d8d0c5'; ctx.lineWidth = 1;
+    for (let j = 0; j <= 4; j++) {
+      const y = bottom - j / 4 * (bottom - top);
+      ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke();
+    }
+    ctx.fillStyle = '#5f5a52'; ctx.font = '12px system-ui';
+    ctx.textAlign = 'right';
+    for (let j = 0; j <= 4; j++) {
+      const y = bottom - j / 4 * (bottom - top);
+      ctx.fillText((peak * j / 4).toFixed(1), left - 6, y + 4);
+    }
+    ctx.textAlign = 'center';
+    for (let j = 0; j <= 4; j++) {
+      const x = left + j / 4 * (right - left);
+      ctx.fillText((j / 4).toFixed(2).replace(/0$/, ''), x, height - 24);
+    }
+    ctx.fillText('probability p', (left + right) / 2, height - 5);
+    ctx.textAlign = 'left';
+    ctx.fillText('density', 3, 14);
+    function curve(index, color) {
+      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2.5;
+      samples.forEach((row, i) => {
+        const px = left + row[0] * (right - left);
+        const py = bottom - row[index] / peak * (bottom - top);
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+    }
+    curve(1, '#a66b4f'); curve(2, '#417e82');
+  }
+  ids.forEach(id => inputs[id].addEventListener('input', draw));
+  window.addEventListener('resize', draw);
+  draw();
+})();
+</script>
+</body>
+</html>

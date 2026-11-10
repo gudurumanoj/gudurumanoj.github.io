@@ -111,6 +111,15 @@ What changes is the range of every intermediate value:
   (in float32), which means its true probability is below $e^{-100}$. Rounding that to 0 is
   the correct answer to float32 precision.
 
+```mermaid
+flowchart TB
+  Z["Logits: 1000, 1001, 1002"] --> M["Subtract max: -2, -1, 0"]
+  M --> E["Exponentiate: 0.1353, 0.3679, 1"]
+  E --> P["Divide by sum: 0.0900, 0.2447, 0.6652"]
+```
+
+The largest shifted exponential is exactly one. Every stage stays finite for this example, even though exponentiating the original logits overflows.
+
 ```python
 def softmax(z, axis=-1):
     z = z - z.max(axis=axis, keepdims=True)

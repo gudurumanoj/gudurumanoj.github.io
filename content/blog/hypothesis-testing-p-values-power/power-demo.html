@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Two-sided z-test power</title>
+<style>
+  body{font:16px/1.5 system-ui,sans-serif;background:#fdfcf8;color:#2d2a23;margin:0;padding:20px}
+  h1{font-size:1.2rem;margin:0 0 8px} p{margin:6px 0 16px}
+  .controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+  label{display:grid;gap:4px;min-width:130px;flex:1} input{accent-color:#a66b4f;width:100%}
+  select{font:inherit;color:inherit;background:white;border:1px solid #b9ada3;border-radius:5px;padding:4px}
+  canvas{display:block;width:100%;max-width:800px;height:260px;margin:15px auto 4px;border:1px solid #d8cfc3;border-radius:8px;background:white}
+  strong{color:#7b482e} .key{display:flex;gap:16px;flex-wrap:wrap;font-size:.9rem}
+  .key span:before{content:"";display:inline-block;width:13px;height:3px;vertical-align:middle;margin-right:5px;background:#a66b4f}
+  .key span:nth-child(2):before{background:#356b84}.key span:nth-child(3):before{background:#d5ab64;height:9px}
+</style>
+<h1>How effect size, sample size, and threshold change power</h1>
+<p>Exact normal model: two independent groups, known common standard deviation, equal <em>n</em> per group, and a preselected two-sided z-test. Curves are the statistic's distributions under H₀ and one specified positive effect under H₁.</p>
+<div class="controls">
+  <label>Effect / population SD: <output id="effectValue"></output><input id="effect" type="range" min="0" max="1.5" step="0.05" value="0.5"></label>
+  <label>Samples per group: <output id="nValue"></output><input id="n" type="range" min="5" max="100" step="1" value="25"></label>
+  <label>Two-sided α<select id="alpha"><option value="0.01">0.01</option><option value="0.05" selected>0.05</option><option value="0.10">0.10</option></select></label>
+</div>
+<canvas id="plot" aria-label="Normal curves for the null and alternative, with two-sided rejection tails" role="img"></canvas>
+<div class="key"><span>H₀ distribution</span><span>H₁ distribution</span><span>H₁ area in rejection tails = power</span></div>
+<p>Standardized shift δ = <span id="delta"></span>. Reject when |Z| &gt; <span id="critical"></span>. Power = <strong id="power"></strong>; type II error β = <span id="beta"></span>. When the effect is zero, the alternative equals the null and power equals α.</p>
+<script>
+const $ = id => document.getElementById(id);
+const c = $('plot'), ctx = c.getContext('2d');
+function erf(x){
+  const sign = x < 0 ? -1 : 1; x = Math.abs(x);
+  const t=1/(1+0.3275911*x);
+  return sign*(1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x));
+}
+const cdf=x=>0.5*(1+erf(x/Math.SQRT2));
+const pdf=x=>Math.exp(-x*x/2)/Math.sqrt(2*Math.PI);
+const critical={'0.01':2.5758293035,'0.05':1.9599639845,'0.10':1.6448536270};
+function draw(){
+  const d=+$('effect').value, n=+$('n').value, a=$('alpha').value;
+  const shift=d*Math.sqrt(n/2), cut=critical[a];
+  const power=cdf(-cut-shift)+1-cdf(cut-shift);
+  $('effectValue').value=d.toFixed(2); $('nValue').value=n;
+  $('delta').textContent=shift.toFixed(3); $('critical').textContent=cut.toFixed(3);
+  $('power').textContent=(100*power).toFixed(1)+'%'; $('beta').textContent=(100*(1-power)).toFixed(1)+'%';
+  const width=Math.min(c.clientWidth,800), height=260, scale=window.devicePixelRatio||1;
+  c.width=Math.round(width*scale); c.height=Math.round(height*scale); ctx.setTransform(scale,0,0,scale,0,0);
+  ctx.clearRect(0,0,width,height);
+  const left=42,right=width-16,top=20,bottom=height-42;
+  const xmin=-4.5,xmax=Math.max(4.5,shift+4.3);
+  const X=x=>left+(x-xmin)/(xmax-xmin)*(right-left),Y=y=>bottom-y/0.44*(bottom-top);
+  ctx.fillStyle='#f4e3c6';
+  for(let i=0;i<550;i++){
+    const x=xmin+(xmax-xmin)*i/550, x2=xmin+(xmax-xmin)*(i+1)/550;
+    if(x<=-cut||x>=cut){ctx.fillRect(X(x),Y(pdf(x-shift)),Math.max(1,X(x2)-X(x)),bottom-Y(pdf(x-shift)));}
+  }
+  ctx.lineWidth=1;ctx.strokeStyle='#bbb1a4';ctx.beginPath();ctx.moveTo(left,bottom);ctx.lineTo(right,bottom);ctx.stroke();
+  for(const v of [-cut,0,cut,shift]){
+    ctx.strokeStyle=Math.abs(v)===cut?'#b98a4b':'#d2cbc2';ctx.setLineDash(Math.abs(v)===cut?[5,4]:[2,4]);
+    ctx.beginPath();ctx.moveTo(X(v),top);ctx.lineTo(X(v),bottom);ctx.stroke();
+  }ctx.setLineDash([]);
+  for(const [offset,color] of [[0,'#a66b4f'],[shift,'#356b84']]){
+    ctx.beginPath();ctx.lineWidth=2.5;ctx.strokeStyle=color;
+    for(let i=0;i<=550;i++){const x=xmin+(xmax-xmin)*i/550; if(i===0)ctx.moveTo(X(x),Y(pdf(x-offset)));else ctx.lineTo(X(x),Y(pdf(x-offset)));}
+    ctx.stroke();
+  }
+  ctx.fillStyle='#554d43';ctx.font='13px system-ui';ctx.textAlign='center';
+  ctx.fillText('−c',X(-cut),bottom+17);ctx.fillText('0',X(0),bottom+17);ctx.fillText('+c',X(cut),bottom+17);
+  ctx.textAlign='left';ctx.fillText('test statistic Z',left,bottom+36);
+}
+for(const id of ['effect','n','alpha'])$(id).addEventListener('input',draw);
+window.addEventListener('resize',draw);draw();
+</script>
+</html>

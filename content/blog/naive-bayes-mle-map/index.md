@@ -75,6 +75,18 @@ For `offer today`, $x=(1,0,1)$. Ignoring the shared multinomial coefficient, the
 
 That $0.8$ is a probability *inside the fitted model*, not proof that eight of ten future documents with this score are spam. The independence and sampling assumptions may be wrong. In particular, seeing `offer` twice multiplies its likelihood ratio by four twice, producing model posterior $16/17\approx0.9412$ for `offer offer today`. Repetition may be informative, but the model can become too certain when repeated or correlated evidence is treated as fresh independent evidence. This is a calibration problem, not an automatic prediction failure: the ranking or class label may still be useful.
 
+```mermaid
+flowchart TB
+  X["Counts for offer today: 1, 0, 1"] --> S["Add log prior and token log likelihoods"]
+  S --> H["Ham score: -3.7534"]
+  S --> P["Spam score: -2.3671"]
+  H --> N["Subtract maximum; exponentiate; normalize"]
+  P --> N
+  N --> R["Model posterior: ham 0.2, spam 0.8"]
+```
+
+The shared document-likelihood denominator disappears when comparing scores and reappears through normalization. This diagram follows the plug-in classifier used in the worked example.
+
 ## Smoothing, posterior mean, and MAP
 
 For vocabulary size $V$, additive smoothing with $\alpha>0$ estimates

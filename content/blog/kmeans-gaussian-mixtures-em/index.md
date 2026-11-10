@@ -173,6 +173,28 @@ More precisely, $\ell(\theta)=\mathcal F(q,\theta)+\sum_i\mathrm{KL}(q_i\|p(z_i\
 
 The complete [NumPy script](clustering_demo.py) implements both algorithms in one dimension with explicit initial values. It uses log-sum-exp for the E-step and no covariance regularizer so the displayed likelihood check refers to the exact objective on this well-behaved example. It rejects nonfinite likelihoods, numerically empty components, and invalid variances; it is a teaching example, not a production mixture fitter.
 
+This is one E-step followed by one M-step on the same six points. The full script repeats these steps and checks the log-likelihood. Each row of `responsibilities` sums to one; each component mean uses its fractional membership mass.
+
+```python {title="One EM update"}
+import numpy as np
+
+x = np.array([0., 1., 2., 4., 5., 6.])
+weights = np.array([0.5, 0.5])
+means = np.array([1., 5.])
+variances = np.array([4., 4.])
+scores = (np.log(weights)[None, :]
+          - 0.5 * np.log(2 * np.pi * variances)[None, :]
+          - 0.5 * (x[:, None] - means[None, :])**2 / variances[None, :])
+shifted = np.exp(scores - scores.max(axis=1, keepdims=True))
+responsibilities = shifted / shifted.sum(axis=1, keepdims=True)
+mass = responsibilities.sum(axis=0)
+weights = mass / x.size
+means = (responsibilities * x[:, None]).sum(axis=0) / mass
+variances = (responsibilities * (x[:, None] - means)**2).sum(axis=0) / mass
+assert np.allclose(responsibilities.sum(axis=1), 1)
+assert np.isclose(weights.sum(), 1)
+```
+
 ```bash
 python3 clustering_demo.py
 ```
