@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Range query decomposition</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#2d2a23;background:#fdfcf8}body{margin:0;padding:1.25rem;max-width:940px}h2{font-size:1.15rem;margin:.2rem 0 1rem}p{line-height:1.45}.controls{display:flex;flex-wrap:wrap;gap:.8rem;align-items:end}.controls label{display:grid;gap:.3rem;font-size:.85rem}input{width:4.5rem;padding:.35rem;border:1px solid #c4b8ac;border-radius:5px;background:white}button{background:#a66b4f;color:white;border:0;border-radius:5px;padding:.55rem .8rem;cursor:pointer}.values{display:flex;gap:.35rem;margin:1rem 0}.cell{min-width:2.5rem;padding:.5rem .25rem;text-align:center;background:#eee8df;border-radius:5px}.cell.on{background:#f0d6c7}.cell small{display:block;color:#655d56}.panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem}.panel{border:1px solid #ddd1c4;border-radius:8px;padding:.8rem}.panel h3{font-size:1rem;margin:0 0 .5rem}.node{display:inline-block;margin:.16rem;padding:.32rem .45rem;border-radius:5px;background:#e8eeeb}.answer{font-weight:700;color:#a66b4f}</style></head>
+<body><h2>How the same half-open query is covered</h2><p>Set one value, then query <code>[l,r)</code>. Fenwick answers with two prefix walks; the segment tree covers the range directly.</p>
+<div class="controls"><label>Index <input id="idx" type="number" min="0" max="5" value="2"></label><label>New value <input id="val" type="number" value="8"></label><button id="set">Assign point</button><label>l <input id="l" type="number" min="0" max="6" value="1"></label><label>r <input id="r" type="number" min="0" max="6" value="5"></label><button id="query">Query</button></div>
+<div id="values" class="values"></div><p class="answer" id="answer"></p><div class="panels"><div class="panel"><h3>Fenwick prefix(r) − prefix(l)</h3><div id="fenwick"></div></div><div class="panel"><h3>Segment-tree cover of [l,r)</h3><div id="segment"></div></div></div>
+<script>
+const a=[2,-1,3,4,0,5],n=a.length;
+const $=id=>document.getElementById(id);
+const sum=(lo,hi)=>a.slice(lo,hi).reduce((x,y)=>x+y,0);
+function prefixWalk(end){let out=[];for(let i=end;i>0;i-=i&-i)out.push([i-(i&-i),i]);return out;}
+function segmentCover(l,r,lo=0,hi=n,out=[]){if(r<=lo||hi<=l)return out;if(l<=lo&&hi<=r){out.push([lo,hi]);return out;}let mid=lo+Math.floor((hi-lo)/2);segmentCover(l,r,lo,mid,out);segmentCover(l,r,mid,hi,out);return out;}
+function nodes(spans){return spans.length?spans.map(([lo,hi])=>`<span class="node">[${lo},${hi}) = ${sum(lo,hi)}</span>`).join(''):'<em>none</em>';}
+function render(){let l=Number($('l').value),r=Number($('r').value);if(!Number.isInteger(l)||!Number.isInteger(r)||l<0||r>n||l>r){$('answer').textContent='Choose 0 ≤ l ≤ r ≤ 6.';return;}
+$('values').innerHTML=a.map((v,i)=>`<div class="cell ${l<=i&&i<r?'on':''}"><small>${i}</small>${v}</div>`).join('');
+$('answer').textContent=`sum[${l},${r}) = ${sum(l,r)}`;
+$('fenwick').innerHTML=`<p>prefix(${r}): ${nodes(prefixWalk(r))}</p><p>prefix(${l}): ${nodes(prefixWalk(l))}</p>`;
+$('segment').innerHTML=nodes(segmentCover(l,r));}
+$('set').onclick=()=>{let i=Number($('idx').value),v=Number($('val').value);if(Number.isInteger(i)&&i>=0&&i<n&&Number.isSafeInteger(v)){a[i]=v;render();}};
+$('query').onclick=render;render();
+</script></body></html>
